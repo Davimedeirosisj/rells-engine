@@ -1,0 +1,29 @@
+import 'dotenv/config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const rootDir = path.resolve(__dirname, '..');
+
+export const config = {
+  port: Number(process.env.PORT) || 3000,
+  rootDir,
+  dirs: {
+    app: path.join(rootDir, 'app'),
+    backend: path.join(rootDir, 'backend'),
+    worker: path.join(rootDir, 'worker'),
+    fonts: path.join(rootDir, 'fonts'),
+    assets: path.join(rootDir, 'assets'),
+    projects: path.join(rootDir, 'projects'),
+    temp: path.join(rootDir, 'temp'),
+    output: path.join(rootDir, 'output'),
+    tests: path.join(rootDir, 'tests'),
+    docs: path.join(rootDir, 'docs'),
+  },
+  ffmpegPath: process.env.FFMPEG_PATH || '',
+  ffprobePath: process.env.FFPROBE_PATH || '',
+  fontPath: path.join(rootDir, 'fonts', 'Gobold-Bold.ttf'),
+};
+
+export default config;

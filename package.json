@@ -1,0 +1,21 @@
+{
+  "name": "rells-engine",
+  "version": "0.1.0",
+  "description": "Aplicação local Windows para processamento automático de cortes de vídeo via FFmpeg.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "node --watch backend/server.js",
+    "test": "node --test \"tests/*.test.js\""
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "multer": "^2.0.1"
+  }
+}

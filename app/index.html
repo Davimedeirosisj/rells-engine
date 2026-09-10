@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Processamento de Vídeo</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <h1>PROCESSAMENTO DE VÍDEO</h1>
+      <nav>
+        <button id="nav-import" class="link-btn" type="button">Importar</button>
+        <button id="nav-projects" class="link-btn active" type="button">Projetos</button>
+      </nav>
+    </header>
+
+    <section id="view-import" class="view" hidden>
+      <p class="subtitle">Importar projeto</p>
+
+      <div class="import-form">
+        <label class="field">
+          <span class="field-label">VÍDEO ORIGINAL</span>
+          <input type="file" id="video" accept=".mp4,.mov,.mkv,.avi,.webm,.m4v" />
+          <span class="field-hint" id="video-name">Nenhum arquivo selecionado</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">SRT</span>
+          <input type="file" id="srt" accept=".srt" />
+          <span class="field-hint" id="srt-name">Nenhum arquivo selecionado</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">CORTES.JSON</span>
+          <input type="file" id="cortes" accept=".json" />
+          <span class="field-hint" id="cortes-name">Nenhum arquivo selecionado</span>
+        </label>
+
+        <button id="import-btn" class="primary" type="button">IMPORTAR PROJETO</button>
+        <div id="message" class="message" hidden></div>
+      </div>
+    </section>
+
+    <section id="view-dashboard" class="view">
+      <div id="dashboard-summary"></div>
+      <div id="cut-table-wrap" class="cut-table-wrap" hidden>
+        <table class="cut-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>TEMA</th>
+              <th>TÍTULO</th>
+              <th>TEMPO</th>
+              <th>STATUS</th>
+              <th>AÇÃO</th>
+            </tr>
+          </thead>
+          <tbody id="cut-tbody"></tbody>
+        </table>
+      </div>
+      <div id="error-list" class="error-list"></div>
+      <button id="generate-all-btn" class="primary" type="button" hidden>GERAR TODOS OS CORTES</button>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
