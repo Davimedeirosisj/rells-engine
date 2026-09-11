@@ -38,22 +38,34 @@ export async function exportProjectZip(projectName) {
   const zipName = `${deliveryName}-cortes.zip`;
   const zipPath = path.join(dir, 'temp', zipName);
 
-  const completed = (manifest.cuts || []).filter((c) => c.status === 'CONCLUÍDO');
-  if (completed.length === 0) {
-    throw new Error('Nenhum corte concluído para exportar.');
-  }
-
-  for (const cut of completed) {
-    if (!cut.output) continue;
+  // Verify and filter completed cuts with valid output files
+  const validCompleted = [];
+  for (const cut of manifest.cuts || []) {
+    if (cut.status !== 'CONCLUÍDO') continue;
+    
+    if (!cut.output) {
+      console.warn(`[WARN] Corte ${cut.id} não possui arquivo de saída.`);
+      continue;
+    }
+    
     const filePath = path.join(outputDir, cut.output);
     if (!existsSync(filePath)) {
-      throw new Error(`Arquivo de saída ausente: ${cut.output}`);
+      console.error(`[ERROR] Arquivo de saída ausente: ${cut.output}`);
+      throw new Error(`Arquivo de saída ausente para corte ${cut.id}: ${cut.output}`);
     }
+    
+    validCompleted.push(cut);
   }
 
-  await fs.mkdir(path.dirname(zipPath), { recursive: true });
+  if (validCompleted.length === 0) {
+    throw new Error('Nenhum arquivo válido encontrado para exportar.');
+  }
 
-  const deliveryManifest = buildDeliveryManifest(manifest);
+  // Build delivery manifest with only valid completed cuts
+  const deliveryManifest = buildDeliveryManifest({
+    ...manifest,
+    cuts: validCompleted
+  });
 
   await new Promise((resolve, reject) => {
     const archive = archiver('zip', { zlib: { level: 6 } });

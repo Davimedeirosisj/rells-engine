@@ -88,6 +88,12 @@ export function runFfmpeg(args) {
     const child = spawn(bin, args);
     let stderr = '';
 
+    // Add timeout (180s for long renders)
+    setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error('Tempo de execução excedido (180s).'));
+    }, 180 * 1000);
+
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
       if (stderr.length > 20000) {

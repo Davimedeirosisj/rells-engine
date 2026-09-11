@@ -17,7 +17,7 @@ export async function generateAllCuts(projectName, processor = processCut) {
 
   for (let i = 0; i < cuts.length; i++) {
     const cut = cuts[i];
-
+    
     if (cut.status === 'CONCLUÍDO') {
       results.skipped += 1;
       results.cuts.push({ id: cut.id, status: 'CONCLUÍDO', error: '' });
@@ -28,20 +28,39 @@ export async function generateAllCuts(projectName, processor = processCut) {
       continue;
     }
 
+    // Mark as PROCESSING before executing
+    cut.status = 'PROCESSANDO';
+    cut.error = '';
+    
     console.log(`[INFO] Processando corte ${String(i + 1).padStart(2, '0')} de ${cuts.length}`);
 
-    await processor(dir, manifest, cut, i);
-    await saveManifest(projectName, manifest);
-
-    if (cut.status === 'CONCLUÍDO') {
-      results.completed += 1;
-      console.log(`[INFO] Corte ${String(i + 1).padStart(2, '0')} concluído`);
-    } else {
+    try {
+      await processor(dir, manifest, cut, i);
+      
+      // Save manifest immediately after success
+      await saveManifest(projectName, manifest);
+      
+      if (cut.status === 'CONCLUÍDO') {
+        results.completed += 1;
+        console.log(`[INFO] Corte ${String(i + 1).padStart(2, '0')} concluído`);
+      } else {
+        results.failed += 1;
+      }
+    } catch (err) {
+      // Rollback state on error
+      cut.status = 'ERRO';
+      cut.error = err.message;
+      await saveManifest(projectName, manifest);
+      
       results.failed += 1;
-      console.error(`[ERROR] Corte ${String(i + 1).padStart(2, '0')} falhou: ${cut.error}`);
+      console.error(`[ERROR] Corte ${String(i + 1).padStart(2, '0')} falhou: ${err.message}`);
     }
 
-    results.cuts.push({ id: cut.id, status: cut.status, error: cut.error || '' });
+    results.cuts.push({ 
+      id: cut.id, 
+      status: cut.status, 
+      error: cut.error || '' 
+    });
   }
 
   return { manifest, results };

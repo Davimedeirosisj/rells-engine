@@ -55,6 +55,21 @@ export function validateCut(cut, index, videoDurationMs) {
     return { ok: false, error: `${label} possui timestamp de fim inválido: "${cut.end}".` };
   }
 
+  // Validate finitude and positivity
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return { 
+      ok: false, 
+      error: `${label} possui timestamps inválidos (não são números finitos).` 
+    };
+  }
+
+  if (startMs <= 0 || endMs <= 0) {
+    return { 
+      ok: false, 
+      error: `${label} possui timestamps negativos ou zero.` 
+    };
+  }
+
   if (startMs >= endMs) {
     return { ok: false, error: `${label} possui início (${cut.start}) maior ou igual ao fim (${cut.end}).` };
   }

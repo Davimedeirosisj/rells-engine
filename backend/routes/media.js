@@ -8,27 +8,42 @@ const router = Router();
 
 router.get('/media/:name/*path', (req, res) => {
   const projectName = req.params.name;
-  const restSegments = req.params.path || [];
+  const restSegments = Array.isArray(req.params.path) 
+    ? req.params.path 
+    : [req.params.path];
+  
+  // Sanitization
+  const sanitizedPath = safeJoin('', ...restSegments);
+  if (!sanitizedPath || sanitizedPath.startsWith('..')) {
+    return res.status(400).json({ ok: false, error: 'Caminho inválido.' });
+  }
 
   try {
-    const rest = Array.isArray(restSegments) ? restSegments.join('/') : String(restSegments);
+    const rest = sanitizedPath;
     const filePath = safeJoin(config.dirs.projects, projectName, rest);
+    
     if (!existsSync(filePath)) {
       return res.status(404).json({ ok: false, error: 'Arquivo não encontrado.' });
     }
 
     const ext = path.extname(filePath).toLowerCase();
-    if (ext === '.mp4') {
-      res.setHeader('Content-Type', 'video/mp4');
-    } else if (ext === '.png') {
-      res.setHeader('Content-Type', 'image/png');
-    } else if (ext === '.jpg' || ext === '.jpeg') {
-      res.setHeader('Content-Type', 'image/jpeg');
+    const allowedExts = ['.mp4', '.png', '.jpg', '.jpeg'];
+    if (!allowedExts.includes(ext)) {
+      return res.status(400).json({ ok: false, error: 'Tipo de arquivo não permitido.' });
     }
+
+    const mimeTypes = {
+      '.mp4': 'video/mp4',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg'
+    };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
 
     res.sendFile(filePath);
   } catch (err) {
-    res.status(400).json({ ok: false, error: err.message });
+    console.error('[ERROR]', err.message);
+    res.status(400).json({ ok: false, error: 'Erro ao servir arquivo.' });
   }
 });
 
