@@ -89,10 +89,12 @@ export function runFfmpeg(args) {
     let stderr = '';
 
     // Add timeout (180s for long renders)
-    setTimeout(() => {
+    const timeout = setTimeout(() => {
       child.kill('SIGTERM');
       reject(new Error('Tempo de execução excedido (180s).'));
     }, 180 * 1000);
+
+    const clearRenderTimeout = () => clearTimeout(timeout);
 
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
@@ -102,10 +104,12 @@ export function runFfmpeg(args) {
     });
 
     child.on('error', (err) => {
+      clearRenderTimeout();
       reject(new Error(`Falha ao executar FFmpeg: ${err.message}`));
     });
 
     child.on('close', (code) => {
+      clearRenderTimeout();
       if (code === 0) {
         resolve({ code, stderr });
       } else {

@@ -1,4 +1,7 @@
-import { timestampToMs } from './timestamp.js';
+import fs from 'node:fs';
+import { existsSync } from 'node:fs';
+import { timestampToMs, msToTimestamp } from './timestamp.js';
+import { parseSrt } from './srt.js';
 
 const CUT_REQUIRED_FIELDS = ['id', 'start', 'end', 'title', 'theme', 'cover_hook'];
 
@@ -63,10 +66,10 @@ export function validateCut(cut, index, videoDurationMs) {
     };
   }
 
-  if (startMs <= 0 || endMs <= 0) {
+  if (startMs < 0 || endMs < 0) {
     return { 
       ok: false, 
-      error: `${label} possui timestamps negativos ou zero.` 
+      error: `${label} possui timestamps negativos.` 
     };
   }
 
@@ -106,4 +109,78 @@ export function validateCuts(cortes, videoDurationMs) {
   const valid = results.filter((r) => r.ok).map((r) => r.cut);
 
   return { valid, errors, results };
+}
+
+export function validateCutsAgainstSrt(validCuts, srtPath) {
+  const errors = [];
+  const kept = [];
+
+  if (!existsSync(srtPath)) return { errors, cuts: validCuts.map((c) => ({ ...c })) };
+
+  const blocks = parseSrt(fs.readFileSync(srtPath, 'utf8'));
+  if (blocks.length === 0) return { errors, cuts: validCuts.map((c) => ({ ...c })) };
+
+  const spanStart = blocks[0].startMs;
+  const spanEnd = blocks[blocks.length - 1].endMs;
+
+  for (const cut of validCuts) {
+    const c = { ...cut };
+    const label = `Corte ${c.id}`;
+    let fatal = false;
+
+    if (c.startMs < spanStart || c.endMs > spanEnd) {
+      fatal = true;
+      errors.push(
+        `${label} (${c.start} → ${c.end}) está fora do intervalo do SRT ` +
+          `(${msToTimestamp(spanStart)} → ${msToTimestamp(spanEnd)}).`,
+      );
+    }
+
+    const raw = c.raw || {};
+
+    if (raw.srt_block !== undefined && raw.srt_block !== null) {
+      if (typeof raw.srt_block !== 'string' || raw.srt_block.trim() === '') {
+        fatal = true;
+        errors.push(`${label} possui "srt_block" inválido (deve ser um texto não vazio).`);
+      } else {
+        const block = blocks.find(
+          (b) => b.text.includes(raw.srt_block) || raw.srt_block.includes(b.text),
+        );
+        if (!block) {
+          fatal = true;
+          errors.push(`${label} possui "srt_block" que não corresponde ao original.srt.`);
+        } else {
+          c.srt_block = raw.srt_block;
+        }
+      }
+    }
+
+    if (raw.speech_timestamps !== undefined && raw.speech_timestamps !== null) {
+      const timestamps = raw.speech_timestamps;
+      if (!Array.isArray(timestamps) || timestamps.length === 0) {
+        errors.push(`${label} possui "speech_timestamps" inválido (deve ser uma lista não vazia).`);
+      } else {
+        const valid = [];
+        for (const t of timestamps) {
+          let ms;
+          try {
+            ms = timestampToMs(t);
+          } catch {
+            errors.push(`${label} possui "speech_timestamps" inválido: "${t}".`);
+            continue;
+          }
+          if (ms < c.startMs || ms > c.endMs) {
+            errors.push(`${label} possui "speech_timestamps" "${t}" fora do intervalo do corte.`);
+            continue;
+          }
+          valid.push(t);
+        }
+        if (valid.length) c.speech_timestamps = valid;
+      }
+    }
+
+    if (!fatal) kept.push(c);
+  }
+
+  return { errors, cuts: kept };
 }

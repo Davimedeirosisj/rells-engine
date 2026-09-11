@@ -58,7 +58,7 @@ export async function exportProjectZip(projectName) {
   }
 
   if (validCompleted.length === 0) {
-    throw new Error('Nenhum arquivo válido encontrado para exportar.');
+    throw new Error('Nenhum corte concluído encontrado para exportar.');
   }
 
   // Build delivery manifest with only valid completed cuts
@@ -77,7 +77,7 @@ export async function exportProjectZip(projectName) {
     archive.pipe(stream);
     archive.append(JSON.stringify(deliveryManifest, null, 2), { name: 'manifest.json' });
 
-    for (const cut of completed) {
+    for (const cut of validCompleted) {
       if (!cut.output) continue;
       archive.file(path.join(outputDir, cut.output), { name: path.join('cortes', cut.output) });
     }
@@ -85,5 +85,5 @@ export async function exportProjectZip(projectName) {
     archive.finalize();
   });
 
-  return { zipPath, zipName, completed: completed.length };
+  return { zipPath, zipName, completed: validCompleted.length };
 }

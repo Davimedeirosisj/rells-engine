@@ -1,6 +1,8 @@
 import path from 'node:path';
 
 const WINDOWS_INVALID_CHARS = /[<>:"/\\|?*\u0000-\u001f]/g;
+const PROJECT_TRAVERSAL = /(^|[\\/])\.\.?([\\/]|$)/;
+const PROJECT_FORBIDDEN = /[<>:"|?*\u0000-\u001f]/g;
 
 export function sanitizeFilename(name = '') {
   const cleaned = String(name)
@@ -8,6 +10,24 @@ export function sanitizeFilename(name = '') {
     .replace(/\s+/g, ' ')
     .trim();
   return cleaned || 'sem-nome';
+}
+
+export function sanitizeProjectName(name = '', { fallback = '' } = {}) {
+  const value = String(name);
+  if (
+    value === '' ||
+    PROJECT_TRAVERSAL.test(value) ||
+    /^[\\/]/.test(value) ||
+    /^[a-zA-Z]:[\\/]/.test(value)
+  ) {
+    return fallback;
+  }
+  const cleaned = value
+    .replace(/[\\/]+/g, '-')
+    .replace(PROJECT_FORBIDDEN, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || fallback;
 }
 
 export function safeJoin(baseDir, ...segments) {

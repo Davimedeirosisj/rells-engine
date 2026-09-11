@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { getProject, saveManifest, findCut, cutOutputFilename } from '../projects.js';
 import { executeCut } from '../ffmpeg.js';
 import { config } from '../config.js';
+import { validateRenderedMp4 } from '../validate.js';
 
 function assertFontAvailable() {
   if (!existsSync(config.fontPath)) {
@@ -11,7 +12,6 @@ function assertFontAvailable() {
     );
   }
 }
-
 export async function processCut(dir, manifest, cut, index) {
   const originalVideoPath = path.join(dir, manifest.sourceVideo);
   const outputFilename = cut.outputFilename || cutOutputFilename(index + 1, cut.title);
@@ -27,6 +27,17 @@ export async function processCut(dir, manifest, cut, index) {
       avatarPath: config.avatarPath,
       verificationPath: config.verificationPath,
     });
+    const validation = await validateRenderedMp4(outputPath, {
+      startMs: cut.startMs,
+      endMs: cut.endMs,
+    });
+    if (!validation.ok) {
+      cut.status = 'ERRO';
+      cut.error = `Falha na validação do MP4: ${validation.issues.join(' | ')}`;
+      cut.output = '';
+      cut.outputPath = '';
+      return cut;
+    }
     cut.status = 'CONCLUÍDO';
     cut.output = outputFilename;
     cut.outputPath = outputPath;

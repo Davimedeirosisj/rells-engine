@@ -4,140 +4,300 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RELLS ENGINE</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cpath d='M12 10l10 6-10 6z' fill='white'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ffffff'/%3E%3Cpath d='M12 10l10 6-10 6z' fill='%230B0D10'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app">
-    <header class="topbar">
+  <div class="layout">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
-        <span class="brand-dot"></span>
-        <h1>RELLS ENGINE</h1>
+        <span class="brand-mark">R</span>
+        <div class="brand-text">
+          <span class="brand-name">RELLS ENGINE</span>
+          <span class="brand-version">v1.0</span>
+        </div>
       </div>
-      <nav>
-        <button id="nav-projects" class="link-btn active" type="button">Projetos</button>
+
+      <nav class="nav" id="main-nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-view="dashboard" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6h-6v6H3z"/></svg>
+          <span>Início</span>
+        </button>
+        <button class="nav-item" data-view="projects" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>
+          <span>Projetos</span>
+        </button>
+        <button class="nav-item" data-view="dashboard" data-anchor="stage1" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 12-5-5m5 5 5-5"/><path d="M4 20h16"/></svg>
+          <span>Importar vídeo</span>
+        </button>
+        <button class="nav-item" data-view="dashboard" data-anchor="stage2" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+          <span>Cortes</span>
+        </button>
+        <button class="nav-item" data-view="exports" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 19h16"/></svg>
+          <span>Exportações</span>
+        </button>
+        <button class="nav-item" data-view="settings" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12z"/></svg>
+          <span>Configurações</span>
+        </button>
       </nav>
-    </header>
 
-    <section id="view-dashboard" class="view">
-      <!-- Upload inicial de vídeo com geração automática de SRT -->
-      <div class="upload-section">
-        <h2>Novo Projeto</h2>
-        <p class="subtitle">Envie seu vídeo e nosso sistema gerará o SRT automaticamente usando IA</p>
+      <div class="sidebar-foot">
+        <span class="local-chip">100% local</span>
+        <span class="sidebar-note">Whisper + FFmpeg nesta máquina</span>
+      </div>
+    </aside>
 
-        <div class="upload-form">
-          <label class="field">
-            <span class="field-label">SELECIONE SEU VÍDEO</span>
-            <input type="file" id="video" accept=".mp4,.mov,.mkv,.avi,.webm,.m4v" />
-            <span class="field-hint" id="video-name">Nenhum arquivo selecionado</span>
-          </label>
-
-          <label class="field">
-            <span class="field-label">NOME DO PROJETO</span>
-            <input type="text" id="project-name" placeholder="Ex: Vlog de Viagem, Tutorial React..." />
-          </label>
-
-          <button id="upload-btn" class="primary" type="button">ENVIAR VÍDEO + GERAR SRT</button>
-          <div id="message" class="message" hidden></div>
+    <!-- ===== MAIN ===== -->
+    <main class="main">
+      <header class="topbar">
+        <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Abrir menu">☰</button>
+        <div class="topbar-heading">
+          <h1>Bem-vindo ao Rells Engine</h1>
+          <p class="topbar-subtitle">Crie seu projeto, gere o SRT com Whisper e produza cortes impactantes.</p>
         </div>
+        <div class="topbar-right">
+          <span class="status-chip" id="system-status" title="Estado do sistema">
+            <span class="status-dot"></span><span id="system-status-text">SISTEMA ONLINE</span>
+          </span>
+          <div class="profile" title="@apostololuizhenrique">
+            <span class="profile-handle">@apostololuizhenrique</span>
+            <span class="avatar" id="avatar">AL</span>
+            <span class="verified" title="Verificado">✓</span>
+          </div>
+        </div>
+      </header>
 
-        <p style="font-size: 0.85rem; color: #666; margin-top: 1rem;">
-          <strong>✨ IA Automática:</strong> Após enviar o vídeo, nossa IA analisará e gerará um arquivo SRT completo com legendas sincronizadas automaticamente. Você só precisará aprovar os cortes e gerar o vídeo final.
-        </p>
-
-        <!-- Status de processamento do vídeo/SRT -->
-        <div id="processing-status" class="processing-status" hidden>
-          <div class="status-card">
-            <div class="status-icon spinner"></div>
-            <h3>Analisando vídeo e gerando SRT...</h3>
-            <p>Isso pode levar alguns segundos. Nossa IA está:</p>
-            <ul id="processing-tasks" style="font-size: 0.85rem; margin-left: 1.2rem;">
-              <li id="task-1">✓ Extraindo metadados do vídeo</li>
-              <li id="task-2" class="hidden">✓ Gerando SRT com IA</li>
-              <li id="task-3" class="hidden">✓ Pronto para edição</li>
-            </ul>
+      <!-- ===== DASHBOARD ===== -->
+      <section class="view active" id="view-dashboard">
+        <!-- Workflow -->
+        <div class="workflow" id="workflow" role="list" aria-label="Etapas do fluxo">
+          <div class="workflow-step active" data-step="1">
+            <span class="step-num">1</span><span class="step-label">Vídeo</span>
+          </div>
+          <span class="workflow-line"></span>
+          <div class="workflow-step" data-step="2">
+            <span class="step-num">2</span><span class="step-label">SRT</span>
+          </div>
+          <span class="workflow-line"></span>
+          <div class="workflow-step" data-step="3">
+            <span class="step-num">3</span><span class="step-label">Cortes</span>
+          </div>
+          <span class="workflow-line"></span>
+          <div class="workflow-step" data-step="4">
+            <span class="step-num">4</span><span class="step-label">Exportação</span>
           </div>
         </div>
 
-        <div id="video-preview-area" class="hidden">
-          <h3>Vídeo Carregado</h3>
-          <video id="video-preview" controls style="width: 100%; max-height: 400px; border-radius: 8px;"></video>
-        </div>
-      </div>
+        <div id="stage-message" class="stage-message" hidden></div>
 
-      <div id="cut-table-wrap" class="cut-table-wrap" hidden>
-      <div id="dashboard-summary"></div>
-      <div id="cut-table-wrap" class="cut-table-wrap" hidden>
-        <table class="cut-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>TEMA</th>
-              <th>TÍTULO</th>
-              <th>TEMPO</th>
-              <th>STATUS</th>
-              <th>AÇÃO</th>
-            </tr>
-          </thead>
-          <tbody id="cut-tbody"></tbody>
-        </table>
-      </div>
-
-      <!-- Tela de boas-vindas inicial -->
-      <div id="welcome-section" class="welcome-section">
-        <div class="welcome-content">
-          <h1>Bem-vindo ao RELLs Engine</h1>
-          <p class="subtitle">A plataforma completa para criação de conteúdo em vídeo com IA</p>
-
-          <div class="features-grid">
-            <div class="feature-card">
-              <div class="feature-icon">🎥</div>
-              <h3>Upload de Vídeo</h3>
-              <p>Envie seus vídeos em qualquer formato (MP4, MOV, MKV, AVI, WEBM)</p>
-            </div>
-
-            <div class="feature-card">
-              <div class="feature-icon">✨</div>
-              <h3>Geração Automática de SRT</h3>
-              <p>Nossa IA analisa seu vídeo e gera legendas sincronizadas automaticamente</p>
-            </div>
-
-            <div class="feature-card">
-              <div class="feature-icon">✂️</div>
-              <h3>Cortes Inteligentes</h3>
-              <p>Edição visual intuitiva com organização por temas e capítulos</p>
-            </div>
-
-            <div class="feature-card">
-              <div class="feature-icon">🚀</div>
-              <h3>Exportação Rápida</h3>
-              <p>Gere seus vídeos prontos para publicação com qualidade máxima</p>
+        <!-- ETAPA 1 — IMPORTAR VÍDEO -->
+        <div class="card" id="stage1">
+          <div class="card-head">
+            <span class="step-badge">1</span>
+            <div class="card-title">
+              <h2>Importar vídeo</h2>
+              <p>Envie o vídeo completo do culto. O Whisper roda localmente e gera o SRT completo.</p>
             </div>
           </div>
+          <div class="card-body">
+            <div class="grid-2">
+              <label class="field">
+                <span class="field-label">NOME DO PROJETO</span>
+                <input id="project-name" class="input" type="text" placeholder="Ex: Culto 08 setembro 2026" autocomplete="off" spellcheck="false" />
+              </label>
+              <label class="field">
+                <span class="field-label">SELECIONE SEU VÍDEO</span>
+                <div class="file-drop">
+                  <input id="video" class="file-input" type="file" accept=".mp4,.mov,.mkv,.avi,.webm,.m4v" />
+                  <span class="file-hint" id="video-name">Nenhum arquivo selecionado</span>
+                </div>
+              </label>
+            </div>
 
-          <div class="cta-section">
-            <button id="start-new-project" class="primary big-btn">CRIAR NOVO PROJETO</button>
-            <p class="subtitle-small">Envie seu vídeo para começar a editar com IA</p>
+            <button id="upload-btn" class="btn btn-primary btn-full" type="button">ENVIAR VÍDEO + GERAR SRT</button>
+            <p class="whisper-note">
+              <span class="dot-local"></span>Whisper 100% LOCAL — o vídeo não sai desta máquina.
+            </p>
+
+            <div class="task-panel hidden" id="upload-tasks">
+              <div class="task" data-task="meta"><span class="task-check"></span><span>Enviando vídeo para o servidor</span></div>
+              <div class="task" data-task="whisper"><span class="task-check"></span><span>Gerando SRT com Whisper local</span></div>
+              <div class="task" data-task="ready"><span class="task-check"></span><span>Pronto para edição</span></div>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
 
-    <div id="preview-modal" class="modal" hidden>
-      <div id="error-list" class="error-list"></div>
-      <div class="project-actions">
-        <button id="generate-all-btn" class="primary" type="button" hidden>GERAR TODOS OS CORTES</button>
-        <button id="export-btn" class="primary" type="button" hidden>EXPORTAR ZIP</button>
-      </div>
-    </section>
+        <!-- ETAPA 2 — IMPORTAR CORTES -->
+        <div class="card" id="stage2">
+          <div class="card-head">
+            <span class="step-badge">2</span>
+            <div class="card-title">
+              <h2>Importar cortes</h2>
+              <p>Envie o cortes.json gerado externamente usando o SRT do projeto.</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="grid-2">
+              <label class="field">
+                <span class="field-label">SELECIONE O PROJETO</span>
+                <select id="cut-project-select" class="input"></select>
+              </label>
+              <label class="field">
+                <span class="field-label">SELECIONE CORTES.JSON</span>
+                <div class="file-drop">
+                  <input id="cortes" class="file-input" type="file" accept=".json" />
+                  <span class="file-hint" id="cortes-name">Nenhum arquivo selecionado</span>
+                </div>
+              </label>
+            </div>
 
-    <div id="preview-modal" class="modal" hidden>
-      <div class="modal-content">
-        <button id="preview-close" class="modal-close" type="button" aria-label="Fechar">×</button>
-        <video id="preview-video" controls playsinline autoplay muted></video>
-      </div>
+            <div class="btn-row">
+              <button id="validate-btn" class="btn btn-secondary" type="button">VALIDAR CORTES</button>
+              <button id="process-btn" class="btn btn-primary" type="button" disabled>PROCESSAR CORTES COM FFMPEG</button>
+            </div>
+            <p class="external-note">
+              Os cortes devem ser gerados externamente usando o SRT e o manual TOP 10 CORTES.
+            </p>
+            <div id="cuts-result" class="cuts-result" hidden></div>
+          </div>
+        </div>
+
+        <!-- FLUXO DO SISTEMA -->
+        <div class="card flow-card">
+          <div class="card-head">
+            <span class="step-badge flow-badge">✦</span>
+            <div class="card-title">
+              <h2>Fluxo do sistema</h2>
+              <p>Como o Rells Engine funciona do início ao fim.</p>
+            </div>
+          </div>
+          <ol class="flow-list">
+            <li><span class="flow-num">1</span><div><strong>Enviar vídeo</strong><p>Crie um projeto e envie seu vídeo</p></div></li>
+            <li><span class="flow-num">2</span><div><strong>Whisper local</strong><p>O sistema gera o SRT completo</p></div></li>
+            <li><span class="flow-num">3</span><div><strong>Seleção externa</strong><p>Use o SRT com o manual TOP 10 CORTES em outro ChatGPT</p></div></li>
+            <li><span class="flow-num">4</span><div><strong>Importar cortes</strong><p>Envie o cortes.json gerado externamente</p></div></li>
+            <li><span class="flow-num">5</span><div><strong>Processar e exportar</strong><p>O sistema gera os vídeos e um ZIP</p></div></li>
+          </ol>
+        </div>
+
+        <!-- PROJETOS RECENTES -->
+        <div class="card" id="projects-card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>Projetos recentes</h2>
+              <p>Projetos reais criados neste servidor local.</p>
+            </div>
+          </div>
+          <div class="table-wrap hidden" id="recent-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr><th>Nome</th><th>Status</th><th>Vídeo</th><th>SRT</th><th>Cortes</th><th>Ações</th></tr>
+              </thead>
+              <tbody id="recent-tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="recent-empty">Nenhum projeto ainda. Envie seu primeiro vídeo na etapa 1.</div>
+        </div>
+      </section>
+
+      <!-- ===== PROJETOS ===== -->
+      <section class="view" id="view-projects">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>Projetos</h2>
+              <p>Gerencie seus projetos, valide cortes e produza os vídeos.</p>
+            </div>
+          </div>
+          <div class="table-wrap hidden" id="projects-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr><th>Nome</th><th>Status</th><th>Vídeo</th><th>SRT</th><th>Cortes</th><th>Ações</th></tr>
+              </thead>
+              <tbody id="projects-tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="projects-empty">Nenhum projeto criado ainda.</div>
+        </div>
+
+        <div class="card hidden" id="detail-card">
+          <div class="card-head detail-head">
+            <button class="btn btn-ghost" id="detail-back" type="button">← Voltar</button>
+            <div class="card-title">
+              <h2 id="detail-title"></h2>
+              <p id="detail-sub"></p>
+            </div>
+            <div class="detail-actions">
+              <button class="btn btn-secondary" id="detail-generate-all" type="button">GERAR TODOS OS CORTES</button>
+              <button class="btn btn-primary" id="detail-export" type="button">EXPORTAR ZIP</button>
+            </div>
+          </div>
+          <div class="table-wrap hidden" id="cut-table-wrap">
+            <table class="data-table cut-table">
+              <thead>
+                <tr><th>#</th><th>TEMA</th><th>TÍTULO</th><th>TEMPO</th><th>STATUS</th><th>AÇÃO</th></tr>
+              </thead>
+              <tbody id="cut-tbody"></tbody>
+            </table>
+          </div>
+          <div id="error-list"></div>
+        </div>
+      </section>
+
+      <!-- ===== EXPORTAÇÕES ===== -->
+      <section class="view" id="view-exports">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>Exportações</h2>
+              <p>Gere o ZIP com os MP4 de todos os cortes concluídos do projeto.</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <label class="field">
+              <span class="field-label">PROJETO</span>
+              <select id="export-project-select" class="input"></select>
+            </label>
+            <button id="export-btn" class="btn btn-primary" type="button">EXPORTAR ZIP</button>
+          </div>
+          <div id="export-result" class="cuts-result" hidden></div>
+        </div>
+      </section>
+
+      <!-- ===== CONFIGURAÇÕES ===== -->
+      <section class="view" id="view-settings">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>Configurações</h2>
+              <p>Status do sistema e do ambiente local.</p>
+            </div>
+          </div>
+          <div class="card-body" id="health-body">
+            <div class="empty-state">Verificando sistema…</div>
+          </div>
+        </div>
+        <div class="card note-card">
+          <strong>Privacidade:</strong> o Whisper roda 100% local. Nenhum áudio ou vídeo é enviado para a nuvem.
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ===== PREVIEW MODAL ===== -->
+  <div class="modal hidden" id="preview-modal">
+    <div class="modal-content">
+      <button class="modal-close" id="preview-close" type="button" aria-label="Fechar">×</button>
+      <video id="preview-video" controls playsinline autoplay muted></video>
     </div>
-  </main>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
