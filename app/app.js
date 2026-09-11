@@ -7,6 +7,7 @@ const cutTableWrap = document.getElementById('cut-table-wrap');
 const cutTbody = document.getElementById('cut-tbody');
 const errorList = document.getElementById('error-list');
 const generateAllBtn = document.getElementById('generate-all-btn');
+const exportBtn = document.getElementById('export-btn');
 
 const videoInput = document.getElementById('video');
 const srtInput = document.getElementById('srt');
@@ -81,8 +82,18 @@ importBtn.addEventListener('click', async () => {
 });
 
 async function loadProjects() {
-  const res = await fetch('/api/projects');
-  const data = await res.json();
+  let data;
+  try {
+    const res = await fetch('/api/projects');
+    data = await res.json();
+  } catch (err) {
+    dashboardSummary.innerHTML = '<div class="panel"><h2>Projetos</h2><p class="empty">Não foi possível conectar ao servidor local.</p></div>';
+    cutTableWrap.hidden = true;
+    errorList.innerHTML = '';
+    generateAllBtn.hidden = true;
+    exportBtn.hidden = true;
+    return;
+  }
 
   if (!data.ok || data.projects.length === 0) {
     dashboardSummary.innerHTML = '';
@@ -130,14 +141,27 @@ async function openProject(name) {
   const p = data.project;
   const m = p.manifest;
   currentProject = { name: p.name };
+  document.title = `${m.project || p.name} · RELLS ENGINE`;
 
-  const total = (m.cuts || []).length + (m.validationErrors || []).length;
+  const cuts = m.cuts || [];
+  const total = cuts.length + (m.validationErrors || []).length;
+  const done = cuts.filter((c) => c.status === 'CONCLUÍDO').length;
+  const failed = cuts.filter((c) => c.status === 'ERRO').length;
+  const pct = cuts.length > 0 ? Math.round((done / cuts.length) * 100) : 0;
 
   dashboardSummary.innerHTML = `
     <div class="panel">
       <div class="back-row"><button class="link-btn" id="back-btn" type="button">← Voltar</button></div>
-      <h2>${escapeHtml(m.project || p.name)}</h2>
-      <p class="p-sub">${m.cuts ? m.cuts.length : 0} corte(s) válido(s) · ${total} total · duração ${msToClock(m.videoDurationMs)}</p>
+      <div class="flx-between">
+        <h2>${escapeHtml(m.project || p.name)}</h2>
+        <span class="chip chip-muted">${cuts.length} corte(s) válido(s)</span>
+      </div>
+      <p class="p-sub">${total} total · duração ${msToClock(m.videoDurationMs)}</p>
+      ${cuts.length > 0 ? `
+        <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" style="width:${pct}%"></div>
+        </div>
+        <p class="progress-label">${done} concluído(s) ${failed ? '· ' + failed + ' erro(s)' : ''} · ${pct}%</p>` : ''}
     </div>`;
 
   document.getElementById('back-btn').addEventListener('click', () => {
@@ -145,10 +169,11 @@ async function openProject(name) {
     switchView('projects');
   });
 
-  renderCuts(m.cuts || []);
+  renderCuts(cuts);
   renderErrors(m.validationErrors || []);
 
-  generateAllBtn.hidden = !(m.cuts && m.cuts.length > 0);
+  generateAllBtn.hidden = !(cuts.length > 0);
+  exportBtn.hidden = !cuts.some((c) => c.status === 'CONCLUÍDO');
 }
 
 function renderCuts(cuts) {
@@ -157,26 +182,46 @@ function renderCuts(cuts) {
     return;
   }
   cutTableWrap.hidden = false;
-  cutTbody.innerHTML = cuts.map((c, i) => `
+  cutTbody.innerHTML = cuts.map((c, i) => {
+    const dur = (c.endMs != null && c.startMs != null) ? msToClock(c.endMs - c.startMs) : '';
+    const status = c.status || 'PENDENTE';
+    return `
     <tr data-id="${c.id}">
       <td>${escapeHtml(String(c.id))}</td>
-      <td class="theme">${escapeHtml(c.theme)}</td>
-      <td class="title">${escapeHtml(c.title)}</td>
-      <td class="time">${escapeHtml(c.start)} → ${escapeHtml(c.end)}</td>
-      <td><span class="status ${escapeHtml(c.status || 'PENDENTE')}">${escapeHtml(c.status || 'PENDENTE')}</span></td>
+      <td class="theme" title="${escapeHtml(c.theme || '')}">${escapeHtml(c.theme)}</td>
+      <td class="title" title="${escapeHtml(c.title || '')}">${escapeHtml(c.title)}</td>
+      <td class="time">${escapeHtml(c.start)} → ${escapeHtml(c.end)}${dur ? `<br><span class="dur">${dur}</span>` : ''}</td>
+      <td>
+        <span class="status ${escapeHtml(status)}" ${c.error ? `title="${escapeHtml(c.error)}"` : ''}>${escapeHtml(status)}</span>
+        ${c.error ? `<span class="err-hint">${escapeHtml(shortError(c.error))}</span>` : ''}
+      </td>
       <td>
         <div class="row-actions">
-          <button type="button" data-act="preview" ${c.output ? '' : 'disabled'}>Visualizar</button>
+          <button type="button" data-act="preview">Visualizar</button>
+          ${c.status === 'CONCLUÍDO'
+            ? `<a class="row-link" href="/media/${encodeURIComponent(currentProject.name)}/output/${encodeURIComponent(c.output)}" download title="Baixar MP4">Baixar</a>`
+            : ''}
           <button type="button" data-act="edit">Editar</button>
-          <button type="button" data-act="generate">Gerar</button>
+          ${c.status === 'ERRO'
+            ? `<button type="button" data-act="retry" class="retry">Tentar Novamente</button>`
+            : c.status === 'CONCLUÍDO'
+              ? `<button type="button" data-act="generate">Regenerar</button>`
+              : `<button type="button" data-act="generate">Gerar</button>`
+          }
           <button type="button" data-act="remove">Remover</button>
         </div>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 
   cutTbody.querySelectorAll('button').forEach((btn) => {
     btn.addEventListener('click', () => handleAction(btn));
   });
+}
+
+function shortError(msg) {
+  const s = String(msg || '');
+  return s.length > 70 ? s.slice(0, 70) + '…' : s;
 }
 
 async function handleAction(btn) {
@@ -184,12 +229,60 @@ async function handleAction(btn) {
   const cutId = Number(row.dataset.id);
   const act = btn.dataset.act;
 
-  if (act === 'generate') {
+  if (act === 'generate' || act === 'retry') {
     await generateCut(currentProject.name, cutId, btn);
-  } else if (act === 'preview' || act === 'edit' || act === 'remove') {
+  } else if (act === 'preview') {
+    await previewCut(currentProject.name, cutId, btn);
+  } else if (act === 'edit' || act === 'remove') {
     showMessage(`Ação "${act}" será implementada em uma fase futura.`, 'err');
   }
 }
+
+async function previewCut(projectName, cutId, btn) {
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Preparando...';
+
+  try {
+    const res = await fetch(
+      `/api/projects/${encodeURIComponent(projectName)}/cuts/${cutId}/preview`,
+      { method: 'POST' },
+    );
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showMessage(data.error || 'Falha ao gerar preview.', 'err');
+      return;
+    }
+    openPreview(data.preview.url);
+  } catch (err) {
+    showMessage('Não foi possível conectar ao servidor local.', 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+function openPreview(url) {
+  const modal = document.getElementById('preview-modal');
+  const video = document.getElementById('preview-video');
+  modal.hidden = false;
+  video.src = url;
+  video.play().catch(() => {});
+}
+
+function closePreview() {
+  const modal = document.getElementById('preview-modal');
+  const video = document.getElementById('preview-video');
+  modal.hidden = true;
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
+}
+
+document.getElementById('preview-close').addEventListener('click', closePreview);
+document.getElementById('preview-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'preview-modal') closePreview();
+});
 
 async function generateCut(projectName, cutId, btn) {
   btn.disabled = true;
@@ -243,9 +336,67 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-generateAllBtn.addEventListener('click', () => {
-  showMessage('O processamento em lote será implementado na Fase 10.', 'err');
-  message.hidden = true;
-});
+generateAllBtn.addEventListener('click', () => generateAll(currentProject?.name));
+
+async function generateAll(projectName) {
+  if (!projectName) return;
+
+  generateAllBtn.disabled = true;
+  generateAllBtn.textContent = 'PROCESSANDO...';
+
+  try {
+    const res = await fetch(
+      `/api/projects/${encodeURIComponent(projectName)}/generate-all`,
+      { method: 'POST' },
+    );
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showMessage(data.error || 'Falha no processamento em lote.', 'err');
+      return;
+    }
+    const r = data.results;
+    showMessage(
+      `Lote concluído: ${r.completed} concluído(s), ${r.failed} erro(s), ${r.skipped} ignorado(s).`,
+      r.failed > 0 ? 'err' : 'ok',
+    );
+    await openProject(projectName);
+  } catch (err) {
+    showMessage('Não foi possível conectar ao servidor local.', 'err');
+  } finally {
+    generateAllBtn.disabled = false;
+    generateAllBtn.textContent = 'GERAR TODOS OS CORTES';
+  }
+}
+
+exportBtn.addEventListener('click', () => exportProject(currentProject?.name));
+
+async function exportProject(projectName) {
+  if (!projectName) return;
+
+  exportBtn.disabled = true;
+  const original = exportBtn.textContent;
+  exportBtn.textContent = 'EXPORTANDO...';
+
+  try {
+    const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/export`, {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showMessage(data.error || 'Falha na exportação.', 'err');
+      return;
+    }
+    showMessage(
+      `ZIP gerado com ${data.completed} corte(s) concluído(s). Iniciando download...`,
+      'ok',
+    );
+    window.location.href = data.url;
+  } catch (err) {
+    showMessage('Não foi possível conectar ao servidor local.', 'err');
+  } finally {
+    exportBtn.disabled = false;
+    exportBtn.textContent = original;
+  }
+}
 
 switchView('projects');

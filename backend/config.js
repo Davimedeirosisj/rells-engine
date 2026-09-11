@@ -23,7 +23,10 @@ export const config = {
   },
   ffmpegPath: process.env.FFMPEG_PATH || '',
   ffprobePath: process.env.FFPROBE_PATH || '',
-  fontPath: path.join(rootDir, 'fonts', 'Gobold-Bold.ttf'),
+  fontPath: process.env.FONT_PATH || path.join(rootDir, 'fonts', 'Gobold-Bold.ttf'),
+  avatarPath: process.env.AVATAR_PATH || path.join(rootDir, 'assets', 'avatar.png'),
+  verificationPath: process.env.VERIFICATION_PATH || path.join(rootDir, 'assets', 'verification.png'),
+  profileHandle: process.env.PROFILE_HANDLE || '@apostololuizhenrique',
 };
 
 export default config;

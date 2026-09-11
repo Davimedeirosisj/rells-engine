@@ -3,13 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Processamento de Vídeo</title>
+  <title>RELLS ENGINE</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cpath d='M12 10l10 6-10 6z' fill='white'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="app">
     <header class="topbar">
-      <h1>PROCESSAMENTO DE VÍDEO</h1>
+      <div class="brand">
+        <span class="brand-dot"></span>
+        <h1>RELLS ENGINE</h1>
+      </div>
       <nav>
         <button id="nav-import" class="link-btn" type="button">Importar</button>
         <button id="nav-projects" class="link-btn active" type="button">Projetos</button>
@@ -61,8 +65,18 @@
         </table>
       </div>
       <div id="error-list" class="error-list"></div>
-      <button id="generate-all-btn" class="primary" type="button" hidden>GERAR TODOS OS CORTES</button>
+      <div class="project-actions">
+        <button id="generate-all-btn" class="primary" type="button" hidden>GERAR TODOS OS CORTES</button>
+        <button id="export-btn" class="primary" type="button" hidden>EXPORTAR ZIP</button>
+      </div>
     </section>
+
+    <div id="preview-modal" class="modal" hidden>
+      <div class="modal-content">
+        <button id="preview-close" class="modal-close" type="button" aria-label="Fechar">×</button>
+        <video id="preview-video" controls playsinline autoplay muted></video>
+      </div>
+    </div>
   </main>
   <script src="app.js"></script>
 </body>

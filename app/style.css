@@ -36,6 +36,20 @@ body {
   margin: 0;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: #2563eb;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.7);
+}
+
 nav {
   display: flex;
   gap: 8px;
@@ -192,6 +206,51 @@ button.primary:disabled {
   margin: 0 0 16px;
 }
 
+.flx-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip-muted {
+  background: #1f2937;
+  color: #a0a0aa;
+}
+
+.progress {
+  height: 8px;
+  border-radius: 6px;
+  background: #1f1f24;
+  overflow: hidden;
+  margin: 12px 0 6px;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 6px;
+  background: #2563eb;
+  transition: width 0.3s ease;
+}
+
+.progress-label {
+  margin: 0 0 4px;
+  color: #8a8a92;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .cut-table-wrap {
   background: #16161a;
   border: 1px solid #26262c;
@@ -240,6 +299,20 @@ button.primary:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+.dur {
+  color: #6b6b73;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.err-hint {
+  display: block;
+  margin-top: 4px;
+  color: #f87171;
+  font-size: 11px;
+  max-width: 220px;
+}
+
 .status {
   display: inline-block;
   padding: 3px 10px;
@@ -274,6 +347,28 @@ button.primary:disabled {
 
 .row-actions button:hover {
   border-color: #3b4a63;
+}
+
+.row-actions button.retry {
+  border-color: #6b4a1c;
+  color: #fbbf24;
+}
+
+.row-actions .row-link {
+  display: inline-block;
+  background: #0b2a1b;
+  border: 1px solid #17402a;
+  color: #4ade80;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.row-actions .row-link:hover {
+  background: #0f3a24;
 }
 
 .error-list {
@@ -317,4 +412,78 @@ button.generate-all {
 
 button.generate-all:hover {
   background: #15803d;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal[hidden] {
+  display: none;
+}
+
+.modal-content {
+  position: relative;
+  width: auto;
+  max-width: min(360px, 100%);
+}
+
+.modal-content video {
+  width: 100%;
+  border-radius: 12px;
+  background: #000;
+  display: block;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+
+.modal-close {
+  position: absolute;
+  top: -42px;
+  right: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.cut-table-wrap {
+  overflow-x: auto;
+}
+
+@media (max-width: 640px) {
+  .app {
+    padding: 0 14px 32px;
+  }
+
+  .topbar {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .row-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .row-actions button,
+  .row-actions .row-link {
+    text-align: center;
+  }
 }

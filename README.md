@@ -31,13 +31,12 @@ O caminho do FFmpeg pode ser configurado em `.env` via `FFMPEG_PATH` / `FFPROBE_
 ```
 app/        frontend (estático)
 backend/    servidor Express + API
-worker/     processador (fases futuras)
-ffmpeg/     helpers FFmpeg (fases futuras)
+backend/routes/  endpoints (import, projects, cuts, preview, batch, export)
+backend/worker/  processamento (cut, preview, batch)
 fonts/      Gobold-Bold.ttf
 assets/     avatar.png, verification.png
 projects/   arquivos por projeto
 temp/       temporários
-output/     saídas finais
 tests/      testes automatizados
 docs/       documentação
 ```
@@ -45,15 +44,15 @@ docs/       documentação
 ## Status das fases
 
 - [x] FASE 1 — Estrutura do projeto e ambiente local
-- [ ] FASE 2 — Upload/importação
-- [ ] FASE 3 — Parser e validação do cortes.json
-- [ ] FASE 4 — Dashboard
-- [ ] FASE 5 — FFmpeg corte simples
-- [ ] FASE 6 — 9:16 / 1080x1920
-- [ ] FASE 7 — GoBold + tema
-- [ ] FASE 8 — Avatar + perfil
-- [ ] FASE 9 — Preview
-- [ ] FASE 10 — Processamento em lote
-- [ ] FASE 11 — ZIP + manifest
-- [ ] FASE 12 — Testes completos
-- [ ] FASE 13 — Polimento da interface
+- [x] FASE 2 — Upload/importação
+- [x] FASE 3 — Parser e validação do cortes.json
+- [x] FASE 4 — Dashboard
+- [x] FASE 5 — FFmpeg corte simples
+- [x] FASE 6 — 9:16 / 1080x1920
+- [x] FASE 7 — GoBold + tema
+- [x] FASE 8 — Avatar + perfil
+- [x] FASE 9 — Preview
+- [x] FASE 10 — Processamento em lote
+- [x] FASE 11 — ZIP + manifest
+- [x] FASE 12 — Testes completos
+- [x] FASE 13 — Polimento da interface

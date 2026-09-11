@@ -1,6 +1,42 @@
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { getProject, saveManifest, findCut, cutOutputFilename } from '../projects.js';
 import { executeCut } from '../ffmpeg.js';
+import { config } from '../config.js';
+
+function assertFontAvailable() {
+  if (!existsSync(config.fontPath)) {
+    throw new Error(
+      `Fonte não encontrada em ${config.fontPath}. Adicione o arquivo Gobold-Bold.ttf para processar.`,
+    );
+  }
+}
+
+export async function processCut(dir, manifest, cut, index) {
+  const originalVideoPath = path.join(dir, manifest.sourceVideo);
+  const outputFilename = cut.outputFilename || cutOutputFilename(index + 1, cut.title);
+  const outputPath = path.join(dir, 'output', outputFilename);
+
+  cut.status = 'PROCESSANDO';
+  cut.error = '';
+
+  try {
+    await executeCut(originalVideoPath, cut.startMs, cut.endMs, outputPath, {
+      theme: cut.theme,
+      handle: config.profileHandle,
+      avatarPath: config.avatarPath,
+      verificationPath: config.verificationPath,
+    });
+    cut.status = 'CONCLUÍDO';
+    cut.output = outputFilename;
+    cut.outputPath = outputPath;
+  } catch (err) {
+    cut.status = 'ERRO';
+    cut.error = err.message;
+  }
+
+  return cut;
+}
 
 export async function generateCut(projectName, cutId) {
   const { dir, manifest } = await getProject(projectName);
@@ -16,25 +52,14 @@ export async function generateCut(projectName, cutId) {
     throw new Error(`Corte ${cutId} já está em processamento.`);
   }
 
-  const originalVideoPath = path.join(dir, manifest.sourceVideo);
-  const outputFilename = cut.outputFilename || cutOutputFilename(index + 1, cut.title);
-  const outputPath = path.join(dir, 'output', outputFilename);
+  assertFontAvailable();
 
-  cut.status = 'PROCESSANDO';
-  cut.error = '';
-  await saveManifest(projectName, manifest);
-
-  try {
-    console.log(`[INFO] Processando corte ${String(index + 1).padStart(2, '0')}`);
-    await executeCut(originalVideoPath, cut.startMs, cut.endMs, outputPath);
-    cut.status = 'CONCLUÍDO';
-    cut.output = outputFilename;
-    cut.outputPath = outputPath;
+  console.log(`[INFO] Processando corte ${String(index + 1).padStart(2, '0')}`);
+  await processCut(dir, manifest, cut, index);
+  if (cut.status === 'CONCLUÍDO') {
     console.log(`[INFO] Corte ${String(index + 1).padStart(2, '0')} concluído`);
-  } catch (err) {
-    cut.status = 'ERRO';
-    cut.error = err.message;
-    console.error(`[ERROR] Corte ${String(index + 1).padStart(2, '0')} falhou: ${err.message}`);
+  } else {
+    console.error(`[ERROR] Corte ${String(index + 1).padStart(2, '0')} falhou: ${cut.error}`);
   }
 
   await saveManifest(projectName, manifest);
