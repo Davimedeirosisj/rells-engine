@@ -3,47 +3,44 @@ import multer from 'multer';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { createProject, parseProjectName, defaultProjectName } from '../project.js';
-import { parseCortes } from '../cortes.js';
+import { createProject, defaultProjectName } from '../project.js';
+import { startTranscription } from '../transcription.js';
 
 const router = Router();
 
 const upload = multer({
   dest: path.join(os.tmpdir(), 'rells-engine-uploads'),
-  limits: { fileSize: 10 * 1024 * 1024 * 1024 }, // 10GB max
+  limits: { fileSize: 10 * 1024 * 1024 * 1024 },
 });
 
-const fields = [
-  { name: 'video', maxCount: 1 },
-];
-
-router.post('/import', upload.fields(fields), async (req, res) => {
-  const files = req.files || {};
-  const videoFile = files.video?.[0];
-  const srtFile = undefined;
-  const cortesFile = undefined;
-  const nameFromForm = req.body.name;
+router.post('/import', upload.fields([{ name: 'video', maxCount: 1 }]), async (req, res) => {
+  const videoFile = req.files?.video?.[0];
 
   try {
-    if (!videoFile) throw new Error('Arquivo de video nao enviado.');
+    if (!videoFile) return res.status(400).json({ ok: false, error: 'Arquivo de video nao enviado.' });
 
-    let name = nameFromForm || defaultProjectName();
+    const name = req.body.name || defaultProjectName();
+    const project = await createProject({ name, videoFile, srtFile: null, cortesFile: null });
+    const transcription = await startTranscription(project.name);
 
-    const project = await createProject({ name, videoFile, srtFile, cortesFile });
-
-    console.log('[INFO] Projeto importado:', name);
+    console.log('[INFO] Projeto importado:', project.name);
     console.log(`[INFO] Duracao: ${project.videoDurationMs} ms`);
+    console.log(`[INFO] Transcricao: ${transcription.status}`);
 
-    res.json({
+    return res.json({
+      ok: true,
       project,
       cuts: null,
-      transcription: null,
+      transcription,
       cutsSummary: { total: 0, valid: 0, errors: [] },
       validationErrors: [],
     });
   } catch (err) {
     console.error('[ERROR] Importacao:', err.message);
-    res.status(500).json({ error: err.message });
+    const status = /já existe|existe|nao enviado|não enviado|extens|inválid|invalido/i.test(err.message) ? 400 : 500;
+    return res.status(status).json({ ok: false, error: err.message });
+  } finally {
+    if (videoFile?.path) await fs.rm(videoFile.path, { force: true }).catch(() => {});
   }
 });
 
