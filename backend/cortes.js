@@ -5,7 +5,7 @@ import { parseSrt } from './srt.js';
 
 const CUT_REQUIRED_FIELDS = ['id', 'start', 'end', 'title', 'theme', 'cover_hook'];
 
-export function parseCortes(raw) {
+export function parseCortes(raw, { projectName = null } = {}) {
   let cortes;
   try {
     cortes = typeof raw === 'string' ? JSON.parse(raw) : raw;
@@ -15,6 +15,13 @@ export function parseCortes(raw) {
 
   if (!cortes || typeof cortes !== 'object') {
     throw new Error('cortes.json deve ser um objeto JSON.');
+  }
+
+  // In the HTTP import flow the project is already identified by
+  // /projects/:name. Keep project metadata optional in the uploaded JSON
+  // and bind it to the route parameter instead of requiring duplication.
+  if ((!cortes.project || typeof cortes.project !== 'object') && projectName) {
+    cortes = { ...cortes, project: { name: projectName } };
   }
 
   if (!cortes.project || typeof cortes.project !== 'object') {
