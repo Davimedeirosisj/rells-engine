@@ -21,6 +21,8 @@ export async function listProjects() {
       projects.push({
         name: entry.name,
         title: manifest.project || entry.name,
+        sourceVideo: manifest.sourceVideo || null,
+        sourceSrt: manifest.sourceSrt || null,
         cutCount: validCuts,
         totalCuts: validCuts,
         validCuts,
@@ -28,7 +30,7 @@ export async function listProjects() {
         importedAt: manifest.importedAt,
       });
     } catch {
-      projects.push({ name: entry.name, title: entry.name, cutCount: 0, totalCuts: 0, validCuts: 0, invalidCuts: 0 });
+      projects.push({ name: entry.name, title: entry.name, sourceVideo: null, sourceSrt: null, cutCount: 0, totalCuts: 0, validCuts: 0, invalidCuts: 0 });
     }
   }
   projects.sort((a, b) => String(b.importedAt || '').localeCompare(String(a.importedAt || '')));
