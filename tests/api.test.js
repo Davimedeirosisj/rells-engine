@@ -17,9 +17,7 @@ let ffprobeOk = false;
 
 before(async () => {
   const app = createApp();
-  await new Promise((resolve) => {
-    server = app.listen(0, '127.0.0.1', resolve);
-  });
+  await new Promise((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
 
   const [ff, fp] = await Promise.all([checkFfmpeg(), checkFfprobe()]);
@@ -27,22 +25,12 @@ before(async () => {
   ffprobeOk = fp.available;
 
   if (ffmpegOk && ffprobeOk) {
-    const res = spawnSync(
-      'ffmpeg',
-      [
-        '-y',
-        '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=25:duration=2',
-        '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2',
-        '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac',
-        '-shortest',
-        TEST_VIDEO,
-      ],
-      { encoding: 'utf8' },
-    );
-    if (res.status !== 0) {
-      ffmpegOk = false;
-    }
+    const res = spawnSync('ffmpeg', [
+      '-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=25:duration=2',
+      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2',
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', TEST_VIDEO,
+    ], { encoding: 'utf8' });
+    if (res.status !== 0) ffmpegOk = false;
   }
 });
 
@@ -76,6 +64,7 @@ test('GET /api/health responde ok', async () => {
   const { status, data } = await api('GET', '/api/health');
   assert.equal(status, 200);
   assert.equal(data.status, 'ok');
+  assert.equal(data.host, '127.0.0.1');
 });
 
 test('POST /api/import sem arquivos retorna 400', async () => {
@@ -84,44 +73,32 @@ test('POST /api/import sem arquivos retorna 400', async () => {
   assert.match(data.error, /não enviado/);
 });
 
-test('POST /api/import com cortes.json inválido retorna 400', async () => {
-  const form = formOf({
-    video: { filename: 'v.mp4', type: 'video/mp4', content: 'x' },
-    srt: { filename: 'l.srt', type: 'application/x-subrip', content: '1\n00:00:00,000 --> 00:00:01,000\nhi' },
-    cortes: { filename: 'c.json', type: 'application/json', content: 'nao é json' },
-  });
+test('POST /api/import rejeita extensão de vídeo inválida', async () => {
+  const form = formOf({ video: { filename: 'v.txt', type: 'text/plain', content: 'x' } });
   const { status, data } = await api('POST', '/api/import', undefined, form);
   assert.equal(status, 400);
   assert.ok(data.error);
 });
 
-test('POST /api/import fluxo feliz importa projeto e valida cortes', async (t) => {
+test('POST /api/import cria projeto e inicia transcrição', async (t) => {
   if (!ffmpegOk || !ffprobeOk) {
     t.skip('FFmpeg/ffprobe indisponíveis');
     return;
   }
+
   const projectName = 'API TESTE INTEGRAÇÃO ' + Date.now();
   const video = await fs.readFile(TEST_VIDEO);
-  const srt = '1\n00:00:00,000 --> 00:00:01,500\nFala um.\n';
-  const cortes = JSON.stringify({
-    project: { name: projectName },
-    preset: 'teste',
-    cuts: [
-      { id: 1, start: '00:00:00,000', end: '00:00:01,500', cover_hook: 'H', title: 'T1', theme: 'Tema 1', speech: 's' },
-    ],
-  });
-
-  const form = formOf({
-    video: { filename: 'v.mp4', type: 'video/mp4', content: video },
-    srt: { filename: 'l.srt', type: 'application/x-subrip', content: srt },
-    cortes: { filename: 'c.json', type: 'application/json', content: cortes },
-  });
+  const form = formOf({ video: { filename: 'v.mp4', type: 'video/mp4', content: video } });
 
   const { status, data } = await api('POST', '/api/import', undefined, form);
-  assert.equal(status, 201);
+  assert.equal(status, 200);
   assert.equal(data.ok, true);
-  assert.equal(data.cuts.valid, 1);
-  assert.equal(data.cuts.errors.length, 0);
+  assert.equal(data.project.name, projectName);
+  assert.ok(['TRANSCRIBING', 'SRT_READY', 'ERROR'].includes(data.transcription.status));
+
+  const statusRes = await api('GET', `/api/projects/${encodeURIComponent(projectName)}/transcription`);
+  assert.equal(statusRes.status, 200);
+  assert.ok(['TRANSCRIBING', 'SRT_READY', 'ERROR'].includes(statusRes.data.transcription.status));
 
   await fs.rm(path.join(projectsDir, projectName), { recursive: true, force: true });
 });
