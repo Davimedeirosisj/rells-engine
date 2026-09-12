@@ -187,6 +187,44 @@
     const blocksMsg = srtBlocks ? ` (${srtBlocks} blocos)` : '';
     showMessage(`Projeto "${projName}" criado (${mb} MB). SRT completo pronto${blocksMsg}.`, 'success');
     refreshProjects();
+
+    // Mostrar botão de salvar SRT quando o estado for SRT_READY e habilitado
+    const downloadBtn = document.createElement('button');
+    downloadBtn.id = 'srt-download-btn';
+    downloadBtn.className = 'btn btn-primary btn-full';
+    downloadBtn.type = 'button';
+    downloadBtn.textContent = '[SALVAR SRT]';
+    $('#stage1').appendChild(downloadBtn);
+
+    downloadBtn.addEventListener('click', async () => {
+      try {
+        const r = await fetch(`/api/projects/${encodeURIComponent(projName)}/srt`);
+        if (!r.ok) {
+          throw new Error(r.status === 404 ? 'original.srt não encontrado' : 'Falha ao obter SRT');
+        }
+
+        // Ler conteúdo como ArrayBuffer para download direto
+        const blob = await r.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'original.srt';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (e) {
+        showMessage('Erro ao baixar SRT: ' + e.message, 'error');
+      }
+    });
+
+    // Mostrar o botão no DOM após criação
+    setTimeout(() => {
+      const btnEl = $('#srt-download-btn');
+      if (btnEl && !btnEl.parentElement) {
+        $('#stage1').appendChild(btnEl);
+      }
+    }, 0);
   }
 
   function finishSrtError(message) {

@@ -1,0 +1,31 @@
+{
+  "model": "anthropic-vertex",
+  "temperature": 0.5,
+  "maxTokens": 16384,
+  
+  "stopSequences": ["=== NOVO FLUXO DE IMPORTAÇÃO ==="],
+  
+  "skills": [
+    "code-explorer",
+    "feature-dev", 
+    "orch-add-feature",
+    "orch-fix-defect",
+    "orch-refine-code",
+    "orch-build-mvp",
+    "security-review",
+    "security-scan",
+    "tdd-workflow",
+    "code-reviewer",
+    "deep-research",
+    "unified-memory"
+  ],
+
+  "commands": [
+    "npm install",
+    "npm start",
+    "npm run build",
+    "npm test",
+    "git add .",
+    "git commit -m"
+  ]
+}
