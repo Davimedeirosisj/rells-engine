@@ -82,7 +82,9 @@ export async function importCutsIntoProject(projectName, cortesRaw) {
   const srtPath = path.join(dir, 'original.srt');
   if (!existsSync(srtPath)) throw new Error('Projeto não possui original.srt pronto. Transcreva o vídeo antes de importar cortes.');
 
-  const cortes = parseCortes(cortesRaw);
+  // The project is already identified by /projects/:name, so bind that
+  // route value to the uploaded JSON instead of requiring duplicate metadata.
+  const cortes = parseCortes(cortesRaw, { projectName });
   if (!Array.isArray(cortes.cuts) || cortes.cuts.length === 0) throw new Error('cortes.json não possui cortes na lista "cuts".');
 
   const baseValidation = validateCuts(cortes, manifest.videoDurationMs);
