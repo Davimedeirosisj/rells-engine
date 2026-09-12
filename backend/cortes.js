@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { timestampToMs, msToTimestamp } from './timestamp.js';
 import { parseSrt } from './srt.js';
 
-const CUT_REQUIRED_FIELDS = ['id', 'start', 'end', 'title', 'theme', 'cover_hook'];
+const CUT_REQUIRED_FIELDS = ['id', 'start', 'end', 'title', 'theme'];
 
 export function parseCortes(raw, { projectName = null } = {}) {
   let cortes;
@@ -48,6 +48,15 @@ export function validateCut(cut, index, videoDurationMs) {
     }
   }
 
+  // The external TOP 10 CORTES format calls this field "cover".
+  // Internally the renderer historically uses "cover_hook", so accept both
+  // and normalize to cover_hook without forcing the external generator to
+  // know an internal implementation detail.
+  const coverHook = cut.cover ?? cut.cover_hook;
+  if (coverHook === undefined || coverHook === null || coverHook === '') {
+    return { ok: false, error: `${label} possui campo obrigatório ausente: "cover".` };
+  }
+
   if (!Number.isInteger(cut.id)) {
     return { ok: false, error: `${label} possui "id" inválido (deve ser inteiro).` };
   }
@@ -65,18 +74,17 @@ export function validateCut(cut, index, videoDurationMs) {
     return { ok: false, error: `${label} possui timestamp de fim inválido: "${cut.end}".` };
   }
 
-  // Validate finitude and positivity
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-    return { 
-      ok: false, 
-      error: `${label} possui timestamps inválidos (não são números finitos).` 
+    return {
+      ok: false,
+      error: `${label} possui timestamps inválidos (não são números finitos).`,
     };
   }
 
   if (startMs < 0 || endMs < 0) {
-    return { 
-      ok: false, 
-      error: `${label} possui timestamps negativos.` 
+    return {
+      ok: false,
+      error: `${label} possui timestamps negativos.`,
     };
   }
 
@@ -99,7 +107,7 @@ export function validateCut(cut, index, videoDurationMs) {
       end: cut.end,
       startMs,
       endMs,
-      cover_hook: cut.cover_hook,
+      cover_hook: coverHook,
       title: cut.title,
       theme: cut.theme,
       speech: cut.speech || '',
