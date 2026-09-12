@@ -9,13 +9,15 @@ import { checkFfmpeg, checkFfprobe } from '../backend/system.js';
 
 const projectsDir = config.dirs.projects;
 const TEST_VIDEO = path.join(config.dirs.temp ?? 'temp', 'api-test-video.mp4');
-
 let server;
 let base = '';
 let ffmpegOk = false;
 let ffprobeOk = false;
+let createdProject = null;
 
 before(async () => {
+  process.env.WHISPER_COMMAND = process.execPath;
+  process.env.WHISPER_MODULE = '0';
   const app = createApp();
   await new Promise((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
@@ -23,7 +25,6 @@ before(async () => {
   const [ff, fp] = await Promise.all([checkFfmpeg(), checkFfprobe()]);
   ffmpegOk = ff.available;
   ffprobeOk = fp.available;
-
   if (ffmpegOk && ffprobeOk) {
     const res = spawnSync('ffmpeg', [
       '-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=25:duration=2',
@@ -37,15 +38,13 @@ before(async () => {
 after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
   await fs.rm(TEST_VIDEO, { force: true }).catch(() => {});
+  if (createdProject) await fs.rm(path.join(projectsDir, createdProject), { recursive: true, force: true }).catch(() => {});
 });
 
 async function api(method, url, body, form) {
   const opts = { method, headers: {} };
   if (form) opts.body = form;
-  else if (body) {
-    opts.headers['content-type'] = 'application/json';
-    opts.body = JSON.stringify(body);
-  }
+  else if (body) { opts.headers['content-type'] = 'application/json'; opts.body = JSON.stringify(body); }
   const res = await fetch(base + url, opts);
   let data = null;
   try { data = await res.json(); } catch {}
@@ -81,26 +80,25 @@ test('POST /api/import rejeita extensão de vídeo inválida', async () => {
 });
 
 test('POST /api/import cria projeto e inicia transcrição', async (t) => {
-  if (!ffmpegOk || !ffprobeOk) {
-    t.skip('FFmpeg/ffprobe indisponíveis');
-    return;
-  }
-
+  if (!ffmpegOk || !ffprobeOk) { t.skip('FFmpeg/ffprobe indisponíveis'); return; }
   const projectName = 'API TESTE INTEGRAÇÃO ' + Date.now();
-  const video = await fs.readFile(TEST_VIDEO);
-  const form = formOf({ video: { filename: 'v.mp4', type: 'video/mp4', content: video } });
-
+  createdProject = projectName;
+  const form = formOf({ video: { filename: 'v.mp4', type: 'video/mp4', content: await fs.readFile(TEST_VIDEO) } });
+  form.append('name', projectName);
   const { status, data } = await api('POST', '/api/import', undefined, form);
   assert.equal(status, 200);
   assert.equal(data.ok, true);
   assert.equal(data.project.name, projectName);
-  assert.ok(['TRANSCRIBING', 'SRT_READY', 'ERROR'].includes(data.transcription.status));
-
+  assert.equal(data.transcription.status, 'ERROR');
   const statusRes = await api('GET', `/api/projects/${encodeURIComponent(projectName)}/transcription`);
   assert.equal(statusRes.status, 200);
-  assert.ok(['TRANSCRIBING', 'SRT_READY', 'ERROR'].includes(statusRes.data.transcription.status));
+  assert.equal(statusRes.data.transcription.status, 'ERROR');
+});
 
-  await fs.rm(path.join(projectsDir, projectName), { recursive: true, force: true });
+test('GET /api/projects/:name/transcription para projeto inexistente retorna 404', async () => {
+  const { status, data } = await api('GET', '/api/projects/projeto_que_nao_existe_987/transcription');
+  assert.equal(status, 404);
+  assert.ok(data.error);
 });
 
 test('POST /api/projects/:name/cuts/:id/generate com id inválido retorna 400', async () => {
