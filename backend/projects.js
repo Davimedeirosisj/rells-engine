@@ -18,11 +18,12 @@ export async function listProjects() {
       const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
       const validCuts = (manifest.cuts || []).length;
       const invalidCuts = (manifest.validationErrors || []).length;
+      const srtReady = manifest.transcription?.status === 'SRT_READY';
       projects.push({
         name: entry.name,
         title: manifest.project || entry.name,
         sourceVideo: manifest.sourceVideo || null,
-        sourceSrt: manifest.sourceSrt || null,
+        sourceSrt: manifest.sourceSrt || (srtReady ? 'transcription-ready' : null),
         cutCount: validCuts,
         totalCuts: validCuts,
         validCuts,
