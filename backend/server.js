@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
@@ -15,6 +16,16 @@ import mediaRouter from './routes/media.js';
 export function createApp() {
   const app = express();
   app.use(express.json());
+  app.get('/', async (_req, res, next) => {
+    try {
+      const indexPath = path.join(config.dirs.app, 'index.html');
+      let html = await fs.readFile(indexPath, 'utf8');
+      html = html.replace('</body>', '  <script src="/srt-save.js"></script>\n</body>');
+      res.type('html').send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
   app.use(express.static(path.join(config.dirs.app)));
 
   app.get('/api/health', async (_req, res) => {
