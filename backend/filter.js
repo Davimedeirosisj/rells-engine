@@ -14,19 +14,18 @@ export function escapeFilterText(text) {
     .replace(/,/g, '\\,');
 }
 
-export function buildVideoFilter({
-  theme,
-  fontPath,
-  handle,
-  avatarPath,
-  verificationPath,
-} = {}) {
+export function buildVideoFilter(options = {}) {
+  const {
+    theme,
+    fontPath,
+    handle,
+    avatarPath,
+    handleImagePath,
+    verificationPath,
+  } = options;
   const w = OUTPUT_WIDTH;
   const h = OUTPUT_HEIGHT;
 
-  // O vídeo original é horizontal (16:9). Para Reels, a saída deve ser
-  // vertical 9:16 e preencher toda a tela, sem a moldura/blur lateral.
-  // Escalamos até cobrir 1080x1920 e fazemos crop central mantendo a proporção.
   const parts = [
     `[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}:(iw-${w})/2:(ih-${h})/2[base]`,
   ];
@@ -42,14 +41,16 @@ export function buildVideoFilter({
   }
 
   const hasAvatar = Boolean(avatarPath) && fs.existsSync(avatarPath);
+  const hasHandleImage = Boolean(handleImagePath) && fs.existsSync(handleImagePath);
   const hasBadge = Boolean(verificationPath) && fs.existsSync(verificationPath);
   const hasHandle = Boolean(handle) && handle.trim();
 
-  if (hasAvatar || hasBadge || hasHandle) {
+  if (hasAvatar || hasHandleImage || hasBadge || hasHandle) {
     const profile = buildProfileFilter({
       handle,
       fontPath,
       avatarPath,
+      handleImagePath,
       verificationPath,
       inputLabel: lastLabel,
     });
@@ -61,10 +62,7 @@ export function buildVideoFilter({
     parts.push(`[${lastLabel}]null[v]`);
   }
 
-  const extraInputs = buildProfileInputs({ avatarPath, verificationPath });
+  const extraInputs = buildProfileInputs({ avatarPath, handleImagePath, verificationPath });
 
-  return {
-    filter: parts.join(';'),
-    extraInputs,
-  };
+  return { filter: parts.join(';'), extraInputs };
 }
