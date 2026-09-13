@@ -1,17 +1,9 @@
 import path from 'node:path';
-import { existsSync } from 'node:fs';
 import { getProject, saveManifest, findCut, cutOutputFilename } from '../projects.js';
 import { executeCut } from '../ffmpeg.js';
 import { config } from '../config.js';
 import { validateRenderedMp4 } from '../validate.js';
 
-function assertFontAvailable() {
-  if (!existsSync(config.fontPath)) {
-    throw new Error(
-      `Fonte não encontrada em ${config.fontPath}. Adicione o arquivo Gobold-Bold.ttf para processar.`,
-    );
-  }
-}
 export async function processCut(dir, manifest, cut, index, progress = {}) {
   const originalVideoPath = path.join(dir, manifest.sourceVideo);
   const outputFilename = cut.outputFilename || cutOutputFilename(index + 1, cut.title);
@@ -64,8 +56,6 @@ export async function generateCut(projectName, cutId) {
   if (cut.status === 'PROCESSANDO') {
     throw new Error(`Corte ${cutId} já está em processamento.`);
   }
-
-  assertFontAvailable();
 
   console.log(`[INFO] Processando corte ${String(index + 1).padStart(2, '0')}`);
   await processCut(dir, manifest, cut, index);
