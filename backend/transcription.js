@@ -3,7 +3,6 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
 import { safeJoin } from './fs-utils.js';
-import { getProject, saveManifest } from './projects.js';
 import { transcribeVideo, checkWhisperAvailability, whisperConfig, srtBlockCount } from './transcribe.js';
 
 async function readProjectState(name) {
@@ -57,12 +56,13 @@ export async function getTranscriptionStatus(name) {
 }
 
 export async function applyTranscriptionReady(ref, { durationMs } = {}) {
+  const srtPath = path.join(ref.dir, 'original.srt');
   ref.manifest.sourceSrt = 'original.srt';
   ref.manifest.transcription = {
     ...(ref.manifest.transcription || {}),
     status: 'SRT_READY',
     srtPath: 'original.srt',
-    srtBlocks: srtBlockCount(path.join(ref.dir, 'original.srt')),
+    srtBlocks: srtBlockCount(srtPath),
     model: whisperConfig.model,
     language: whisperConfig.language,
     outputFormat: whisperConfig.outputFormat,
@@ -93,17 +93,6 @@ export async function markTranscribing(ref) {
   await persist(ref);
 }
 
-async function cleanupWhisperArtifacts(outputDir) {
-  const exts = ['.srt', '.txt', '.json', '.tsv', '.vtt'];
-  let files = [];
-  try { files = await fs.readdir(outputDir); } catch { return; }
-  for (const f of files) {
-    if (exts.includes(path.extname(f).toLowerCase())) {
-      await fs.rm(path.join(outputDir, f), { force: true }).catch(() => {});
-    }
-  }
-}
-
 async function runJob(name, videoPath, outputDir) {
   const started = Date.now();
   let ref;
@@ -117,10 +106,11 @@ async function runJob(name, videoPath, outputDir) {
   try {
     const { srtPath } = await transcribeVideo({ videoPath, outputDir });
     const projectSrtPath = path.join(ref.dir, 'original.srt');
-    await fs.copyFile(srtPath, projectSrtPath);
+    if (path.resolve(srtPath) !== path.resolve(projectSrtPath)) {
+      await fs.copyFile(srtPath, projectSrtPath);
+    }
     await applyTranscriptionReady(ref);
     console.log(`[INFO] Transcrição concluída (${Math.round((Date.now() - started) / 1000)}s). SRT: ${projectSrtPath}`);
-    await cleanupWhisperArtifacts(outputDir);
   } catch (err) {
     console.error(`[ERROR] Transcrição falhou: ${err.message}`);
     if (err.stderr) console.error(`[WHISPER-STDERR]\n${String(err.stderr).slice(0, 2000)}`);
@@ -145,7 +135,9 @@ export async function startTranscription(name) {
     return { status: 'ERROR', error: availability.error };
   }
 
-  const outputDir = path.join(ref.dir, 'temp');
+  // O diretório do projeto é o workspace estável da transcrição.
+  // O SRT final é normalizado para original.srt antes de marcar SRT_READY.
+  const outputDir = ref.dir;
   await markTranscribing(ref);
   runJob(name, videoPath, outputDir).catch(() => {});
   return { status: 'TRANSCRIBING', command: availability.program };
