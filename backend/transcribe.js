@@ -53,7 +53,7 @@ export function srtBlockCount(srtPath) {
   return count;
 }
 
-export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = whisperConfig.timeoutMs, spawnFn = spawn }) {
+export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = whisperConfig.timeoutMs, spawnFn = spawn, onStderr } = {}) {
   return new Promise((resolve, reject) => {
     let child;
     let stdout = '';
@@ -86,7 +86,11 @@ export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = w
     }
 
     if (child.stdout) child.stdout.on('data', (d) => { stdout += d.toString(); });
-    if (child.stderr) child.stderr.on('data', (d) => { stderr += d.toString(); });
+    if (child.stderr) child.stderr.on('data', (d) => {
+      const text = d.toString();
+      stderr += text;
+      if (typeof onStderr === 'function') onStderr(text);
+    });
 
     child.on('error', (err) => {
       clearTimeout(timer);
@@ -144,7 +148,7 @@ export async function findNewestSrt(dir) {
   return srts[0].path;
 }
 
-export async function transcribeVideo({ videoPath, outputDir, cfg = whisperConfig, spawnFn = spawn } = {}) {
+export async function transcribeVideo({ videoPath, outputDir, cfg = whisperConfig, spawnFn = spawn, onProgress } = {}) {
   if (!videoPath || !outputDir) throw new Error('videoPath e outputDir são obrigatórios para transcrição.');
   if (!fs.existsSync(videoPath)) throw new Error(`Vídeo não encontrado em: ${videoPath}`);
   if (!fs.existsSync(outputDir)) await fs.promises.mkdir(outputDir, { recursive: true });
@@ -157,10 +161,30 @@ export async function transcribeVideo({ videoPath, outputDir, cfg = whisperConfi
   }
 
   const args = buildWhisperArgs(videoPath, outputDir, cfg);
+  let lastPercent = 0;
+  const startedAt = Date.now();
+  const reportStderr = (text) => {
+    const percentMatches = [...String(text).matchAll(/(?:^|\s)(\d{1,3})%/g)];
+    if (!percentMatches.length) return;
+    const percent = Math.max(lastPercent, Math.min(99.9, Number(percentMatches.at(-1)[1])));
+    if (percent <= lastPercent) return;
+    lastPercent = percent;
+    const elapsedSeconds = (Date.now() - startedAt) / 1000;
+    const speed = percent > 0 ? percent / Math.max(elapsedSeconds, 0.1) : null;
+    const estimatedRemainingSeconds = speed ? Math.max(0, (100 - percent) / speed) : null;
+    if (typeof onProgress === 'function') onProgress({ progress: percent, elapsedSeconds, speed, estimatedRemainingSeconds });
+  };
 
   let res;
   try {
-    res = await execWhisper({ program: availability.program, moduleArgs: availability.moduleArgs, args, timeoutMs: cfg.timeoutMs, spawnFn });
+    res = await execWhisper({
+      program: availability.program,
+      moduleArgs: availability.moduleArgs,
+      args,
+      timeoutMs: cfg.timeoutMs,
+      spawnFn,
+      onStderr: reportStderr,
+    });
   } catch (err) {
     err.code = err.code || 'WHISPER_EXEC_FAILED';
     err.program = availability.program;
@@ -197,5 +221,6 @@ export async function transcribeVideo({ videoPath, outputDir, cfg = whisperConfi
     }
   }
 
+  if (typeof onProgress === 'function') onProgress({ progress: 100, elapsedSeconds: (Date.now() - startedAt) / 1000, speed: lastPercent > 0 ? lastPercent / Math.max((Date.now() - startedAt) / 1000, 0.1) : null, estimatedRemainingSeconds: 0 });
   return { srtPath, stdout: res.stdout, stderr: res.stderr, expectedSrtPath: expected };
 }
