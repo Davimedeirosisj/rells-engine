@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { escapeFilterText } from './filter.js';
 
 export const THEME_MAX_LINE_CHARS = 24;
-export const THEME_FONT_SIZE = 64;
+export const THEME_FONT_SIZE = 72;
 
 export function wrapThemeText(text, maxChars = THEME_MAX_LINE_CHARS) {
   const upper = String(text).toUpperCase().trim();
