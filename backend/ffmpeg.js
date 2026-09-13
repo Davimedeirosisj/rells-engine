@@ -17,68 +17,20 @@ export function msToFfmpegTime(ms) {
 export function buildCutCommand(inputPath, startMs, endMs, { theme = '', handle, avatarPath, verificationPath } = {}) {
   const start = msToFfmpegTime(startMs);
   const end = msToFfmpegTime(endMs);
-
-  const { filter, extraInputs } = buildVideoFilter({
-    theme,
-    fontPath: config.fontPath,
-    handle,
-    avatarPath,
-    verificationPath,
-  });
-
+  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath: config.fontPath, handle, avatarPath, verificationPath });
   const args = ['-y', '-ss', start, '-to', end, '-i', inputPath];
-
-  for (const extra of extraInputs) {
-    args.push('-i', extra);
-  }
-
-  args.push(
-    '-filter_complex', filter,
-    '-map', '[v]',
-    '-map', '0:a:0',
-    '-r', '30',
-    '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-crf', '18',
-    '-c:a', 'aac',
-    '-b:a', '192k',
-    '-movflags', '+faststart',
-  );
-
+  for (const extra of extraInputs) args.push('-i', extra);
+  args.push('-filter_complex', filter, '-map', '[v]', '-map', '0:a:0', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart');
   return args;
 }
 
 export function buildPreviewCommand(inputPath, startMs, endMs, { theme = '', handle, avatarPath, verificationPath, durationMs } = {}) {
   const start = msToFfmpegTime(startMs);
   const previewDuration = durationMs || Math.min(endMs - startMs, 3000);
-
-  const { filter, extraInputs } = buildVideoFilter({
-    theme,
-    fontPath: config.fontPath,
-    handle,
-    avatarPath,
-    verificationPath,
-  });
-
+  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath: config.fontPath, handle, avatarPath, verificationPath });
   const args = ['-y', '-ss', start, '-t', msToFfmpegTime(previewDuration), '-i', inputPath];
-
-  for (const extra of extraInputs) {
-    args.push('-i', extra);
-  }
-
-  args.push(
-    '-filter_complex', filter,
-    '-map', '[v]',
-    '-map', '0:a:0',
-    '-r', '30',
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '32',
-    '-c:a', 'aac',
-    '-b:a', '96k',
-    '-movflags', '+faststart',
-  );
-
+  for (const extra of extraInputs) args.push('-i', extra);
+  args.push('-filter_complex', filter, '-map', '[v]', '-map', '0:a:0', '-r', '30', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '32', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart');
   return args;
 }
 
@@ -87,8 +39,7 @@ export function runFfmpeg(args, { onProgress, totalDurationMs } = {}) {
   return new Promise((resolve, reject) => {
     const childArgs = [...args];
     if (typeof onProgress === 'function') {
-      const outputIndex = Math.max(0, childArgs.length - 1);
-      childArgs.splice(outputIndex, 0, '-progress', 'pipe:1', '-nostats');
+      childArgs.splice(Math.max(0, childArgs.length - 1), 0, '-progress', 'pipe:1', '-nostats');
     }
 
     const child = spawn(bin, childArgs, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -97,8 +48,9 @@ export function runFfmpeg(args, { onProgress, totalDurationMs } = {}) {
     let lastOutTimeMs = 0;
     const startedAt = Date.now();
 
-    const report = (outTimeMs) => {
-      if (typeof onProgress !== 'function' || !Number.isFinite(outTimeMs)) return;
+    const report = (rawOutTimeMs) => {
+      if (typeof onProgress !== 'function' || !Number.isFinite(rawOutTimeMs)) return;
+      const outTimeMs = rawOutTimeMs / 1000;
       lastOutTimeMs = Math.max(lastOutTimeMs, outTimeMs);
       const elapsedSeconds = (Date.now() - startedAt) / 1000;
       const percent = totalDurationMs ? Math.max(0, Math.min(99.9, (lastOutTimeMs / totalDurationMs) * 100)) : 0;
@@ -124,19 +76,16 @@ export function runFfmpeg(args, { onProgress, totalDurationMs } = {}) {
       child.kill('SIGTERM');
       reject(new Error('Tempo de execução excedido (180s).'));
     }, 180 * 1000);
-
     const clearRenderTimeout = () => clearTimeout(timeout);
 
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
       if (stderr.length > 20000) stderr = stderr.slice(-20000);
     });
-
     child.on('error', (err) => {
       clearRenderTimeout();
       reject(new Error(`Falha ao executar FFmpeg: ${err.message}`));
     });
-
     child.on('close', (code) => {
       clearRenderTimeout();
       if (code === 0) {
