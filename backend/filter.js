@@ -23,14 +23,7 @@ export function escapeFilterText(text) {
 }
 
 export function buildVideoFilter(options = {}) {
-  const {
-    theme,
-    fontPath,
-    handle,
-    avatarPath,
-    handleImagePath,
-    verificationPath,
-  } = options;
+  const { theme, fontPath, handleImagePath } = options;
   const w = OUTPUT_WIDTH;
   const h = OUTPUT_HEIGHT;
   const resolvedHandleImage = handleImagePath || findArrobaPng();
@@ -49,18 +42,11 @@ export function buildVideoFilter(options = {}) {
     }
   }
 
-  const hasAvatar = Boolean(avatarPath) && fs.existsSync(avatarPath);
-  const hasHandleImage = Boolean(resolvedHandleImage) && fs.existsSync(resolvedHandleImage);
-  const hasBadge = Boolean(verificationPath) && fs.existsSync(verificationPath);
-  const hasHandle = Boolean(handle) && handle.trim();
-
-  if (hasAvatar || hasHandleImage || hasBadge || hasHandle) {
+  // Identificação do perfil: somente o PNG da pasta "arroba".
+  // Não renderizar nome, texto de arroba, avatar ou selo de verificação.
+  if (resolvedHandleImage && fs.existsSync(resolvedHandleImage)) {
     const profile = buildProfileFilter({
-      handle,
-      fontPath,
-      avatarPath,
       arrobaPath: resolvedHandleImage,
-      verificationPath,
       inputLabel: lastLabel,
     });
     parts.push(profile.filter);
@@ -71,11 +57,7 @@ export function buildVideoFilter(options = {}) {
     parts.push(`[${lastLabel}]null[v]`);
   }
 
-  const extraInputs = buildProfileInputs({
-    avatarPath,
-    arrobaPath: resolvedHandleImage,
-    verificationPath,
-  });
+  const extraInputs = buildProfileInputs({ arrobaPath: resolvedHandleImage });
 
   return { filter: parts.join(';'), extraInputs };
 }
