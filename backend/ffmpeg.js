@@ -82,13 +82,44 @@ export function buildPreviewCommand(inputPath, startMs, endMs, { theme = '', han
   return args;
 }
 
-export function runFfmpeg(args) {
+export function runFfmpeg(args, { onProgress, totalDurationMs } = {}) {
   const bin = getFfmpegBin();
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args);
-    let stderr = '';
+    const childArgs = [...args];
+    if (typeof onProgress === 'function') {
+      const outputIndex = Math.max(0, childArgs.length - 1);
+      childArgs.splice(outputIndex, 0, '-progress', 'pipe:1', '-nostats');
+    }
 
-    // Add timeout (180s for long renders)
+    const child = spawn(bin, childArgs, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    let stdout = '';
+    let lastOutTimeMs = 0;
+    const startedAt = Date.now();
+
+    const report = (outTimeMs) => {
+      if (typeof onProgress !== 'function' || !Number.isFinite(outTimeMs)) return;
+      lastOutTimeMs = Math.max(lastOutTimeMs, outTimeMs);
+      const elapsedSeconds = (Date.now() - startedAt) / 1000;
+      const percent = totalDurationMs ? Math.max(0, Math.min(99.9, (lastOutTimeMs / totalDurationMs) * 100)) : 0;
+      const speed = percent > 0 ? percent / Math.max(elapsedSeconds, 0.1) : null;
+      const estimatedRemainingSeconds = speed ? Math.max(0, (100 - percent) / speed) : null;
+      onProgress({ progress: percent, elapsedSeconds, estimatedRemainingSeconds, speed, currentTimeMs: lastOutTimeMs, totalDurationMs });
+    };
+
+    let progressBuffer = '';
+    child.stdout.on('data', (chunk) => {
+      const text = chunk.toString();
+      stdout += text;
+      progressBuffer += text;
+      const lines = progressBuffer.split(/\r?\n/);
+      progressBuffer = lines.pop() || '';
+      for (const line of lines) {
+        const match = line.match(/^out_time_ms=(\d+)/);
+        if (match) report(Number(match[1]));
+      }
+    });
+
     const timeout = setTimeout(() => {
       child.kill('SIGTERM');
       reject(new Error('Tempo de execução excedido (180s).'));
@@ -98,9 +129,7 @@ export function runFfmpeg(args) {
 
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
-      if (stderr.length > 20000) {
-        stderr = stderr.slice(-20000);
-      }
+      if (stderr.length > 20000) stderr = stderr.slice(-20000);
     });
 
     child.on('error', (err) => {
@@ -111,7 +140,8 @@ export function runFfmpeg(args) {
     child.on('close', (code) => {
       clearRenderTimeout();
       if (code === 0) {
-        resolve({ code, stderr });
+        if (typeof onProgress === 'function') onProgress({ progress: 100, elapsedSeconds: (Date.now() - startedAt) / 1000, estimatedRemainingSeconds: 0, speed: null, currentTimeMs: totalDurationMs, totalDurationMs });
+        resolve({ code, stderr, stdout });
       } else {
         reject(new Error(`FFmpeg retornou código ${code}: ${stderr.slice(-500)}`));
       }
@@ -120,7 +150,8 @@ export function runFfmpeg(args) {
 }
 
 export function executeCut(inputPath, startMs, endMs, outputPath, options = {}) {
-  return runFfmpeg([...buildCutCommand(inputPath, startMs, endMs, options), outputPath]);
+  const { onProgress, totalDurationMs, ...ffmpegOptions } = options;
+  return runFfmpeg([...buildCutCommand(inputPath, startMs, endMs, ffmpegOptions), outputPath], { onProgress, totalDurationMs });
 }
 
 export function executePreview(inputPath, startMs, endMs, outputPath, options = {}) {
