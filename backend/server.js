@@ -20,7 +20,7 @@ export function createApp() {
     try {
       const indexPath = path.join(config.dirs.app, 'index.html');
       let html = await fs.readFile(indexPath, 'utf8');
-      html = html.replace('</body>', '  <script src="/srt-save.js?v=2"></script>\n  <script src="/progress-ui.js?v=3"></script>\n</body>');
+      html = html.replace('</body>', '  <script src="/srt-save.js?v=2"></script>\n  <script src="/progress-ui.js?v=3"></script>\n  <script src="/ux3-unified-cuts.js?v=1"></script>\n</body>');
       res.type('html').send(html);
     } catch (err) {
       next(err);
