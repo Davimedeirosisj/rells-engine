@@ -24,11 +24,11 @@ export function buildVideoFilter({
   const w = OUTPUT_WIDTH;
   const h = OUTPUT_HEIGHT;
 
+  // O vídeo original é horizontal (16:9). Para Reels, a saída deve ser
+  // vertical 9:16 e preencher toda a tela, sem a moldura/blur lateral.
+  // Escalamos até cobrir 1080x1920 e fazemos crop central mantendo a proporção.
   const parts = [
-    '[0:v]split=2[bg][fg]',
-    `[bg]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},gblur=sigma=40[bgv]`,
-    `[fg]scale=${w}:${h}:force_original_aspect_ratio=decrease[fgv]`,
-    '[bgv][fgv]overlay=(W-w)/2:(H-h)/2[base]',
+    `[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}:(iw-${w})/2:(ih-${h})/2[base]`,
   ];
 
   let lastLabel = 'base';
