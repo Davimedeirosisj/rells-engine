@@ -28,6 +28,7 @@ export function buildWhisperArgs(videoPath, outputDir, cfg = whisperConfig) {
     '--model', cfg.model,
     '--language', cfg.language,
     '--output_format', cfg.outputFormat,
+    '--verbose', 'False',
     '--output_dir', outputDir,
   ];
 }
