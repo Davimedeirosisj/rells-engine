@@ -48,7 +48,7 @@ export function buildThemeFilter(theme, fontPath) {
 
   const escapedPath = fontPath.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
 
-  const baseY = Math.round(0.45 * 1920);
+  const baseY = Math.round(0.55 * 1920);
   const lineHeight = THEME_FONT_SIZE + 24;
   const startY = baseY - Math.round(((lines.length - 1) * lineHeight) / 2);
 
