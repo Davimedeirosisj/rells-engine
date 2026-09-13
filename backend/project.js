@@ -23,7 +23,7 @@ export async function createProject({ name, videoFile, srtFile, cortesFile }) {
 
   const safeName = sanitizeProjectName(name, { fallback: 'projeto' });
   const projectDir = safeJoin(config.dirs.projects, safeName);
-  if (existsSync(projectDir)) throw new Error(`Projeto "${safeName}" já existe. Exclua a pasta ou use outro nome.`);
+  if (existsSync(projectDir)) throw new Error(`Projeto \"${safeName}\" já existe. Exclua a pasta ou use outro nome.`);
 
   validateExtension(videoFile.originalname, 'video');
   if (srtFile) validateExtension(srtFile.originalname, 'srt');
@@ -76,16 +76,20 @@ export async function createProject({ name, videoFile, srtFile, cortesFile }) {
 
 export async function importCutsIntoProject(projectName, cortesRaw) {
   const { dir, manifest } = await getProject(projectName);
-  const videoPath = path.join(dir, manifest.sourceVideo || 'original.mp4');
-  if (!existsSync(videoPath)) throw new Error('Projeto não possui vídeo original para validar os cortes.');
 
-  const srtPath = path.join(dir, 'original.srt');
-  if (!existsSync(srtPath)) throw new Error('Projeto não possui original.srt pronto. Transcreva o vídeo antes de importar cortes.');
+  // Cut import is tied to the existing project and its transcription, not to
+  // a project-local original.srt. Whisper stores the generated SRT outside
+  // the project so the video never needs to be imported again just to retry
+  // cut generation/import.
+  const srtPath = manifest.transcription?.srtPath || null;
+  if (!srtPath || !existsSync(srtPath)) {
+    throw new Error('Projeto não possui uma transcrição SRT pronta. Gere a transcrição antes de importar cortes.');
+  }
 
   // The project is already identified by /projects/:name, so bind that
   // route value to the uploaded JSON instead of requiring duplicate metadata.
   const cortes = parseCortes(cortesRaw, { projectName });
-  if (!Array.isArray(cortes.cuts) || cortes.cuts.length === 0) throw new Error('cortes.json não possui cortes na lista "cuts".');
+  if (!Array.isArray(cortes.cuts) || cortes.cuts.length === 0) throw new Error('cortes.json não possui cortes na lista \"cuts\".');
 
   const baseValidation = validateCuts(cortes, manifest.videoDurationMs);
   const srtValidation = validateCutsAgainstSrt(baseValidation.valid, srtPath);
