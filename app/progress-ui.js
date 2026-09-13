@@ -3,8 +3,6 @@
 
   const originalFetch = window.fetch.bind(window);
   let activeTimer = null;
-  let currentProject = null;
-  let lastPhase = null;
 
   const style = document.createElement('style');
   style.textContent = `
@@ -95,21 +93,16 @@
         const data = await response.json();
         const p = data.progress || {};
         const isTranscription = mode === 'TRANSCRIBING' || p.stage === 'WHISPER';
-        const title = isTranscription ? 'GERAÇÃO DA TRANSCRIÇÃO' : 'PROCESSAMENTO DOS CORTES';
-        const stage = isTranscription ? 'WHISPER' : (p.totalCuts ? `CORTE ${p.currentCut || 0}/${p.totalCuts}` : 'FFMPEG');
         updatePanel({
-          title,
+          title: isTranscription ? 'GERAÇÃO DA TRANSCRIÇÃO' : 'PROCESSAMENTO DOS CORTES',
           progress: p.progress,
           elapsedSeconds: p.elapsedSeconds,
           estimatedRemainingSeconds: p.estimatedRemainingSeconds,
           speed: p.speed,
-          stage,
+          stage: isTranscription ? 'WHISPER' : (p.totalCuts ? `CORTE ${p.currentCut || 0}/${p.totalCuts}` : 'FFMPEG'),
           message: p.message,
         });
-        if (p.status === 'SRT_READY' || p.status === 'COMPLETED' || p.status === 'ERROR') {
-          stopPolling();
-          if (p.status === 'ERROR') lastPhase = null;
-        }
+        if (p.status === 'SRT_READY' || p.status === 'COMPLETED' || p.status === 'ERROR') stopPolling();
       } catch { /* falha transitória */ }
       if (tries > 7200) stopPolling();
     };
@@ -128,7 +121,8 @@
       const startedAt = performance.now();
       const isImport = /\/api\/import$/.test(url) && options.body instanceof FormData;
       const isBatch = /\/api\/projects\/[^/]+\/generate-all$/.test(url) && options.method === 'POST';
-      const projectName = isImport ? options.body.get('name') : (url.match(/\/api\/projects\/([^/]+)\/generate-all$/)?.[1] ? decodeURIComponent(url.match(/\/api\/projects\/([^/]+)\/generate-all$/)[1]) : null);
+      const match = url.match(/\/api\/projects\/([^/]+)\/generate-all$/);
+      const projectName = isImport ? options.body.get('name') : (match ? decodeURIComponent(match[1]) : null);
 
       if (isImport) {
         updatePanel({ title: 'IMPORTAÇÃO DO VÍDEO', progress: 0, elapsedSeconds: 0, stage: 'UPLOAD', message: 'Enviando vídeo para o servidor…' });
@@ -141,28 +135,20 @@
         });
       } else if (isBatch) {
         updatePanel({ title: 'PROCESSAMENTO DOS CORTES', progress: 0, elapsedSeconds: 0, stage: 'FFMPEG', message: 'Iniciando processamento…' });
+        if (projectName) pollProjectProgress(projectName, 'PROCESSING');
       }
 
       xhr.onload = () => {
-        const headers = new Headers();
-        xhr.getAllResponseHeaders().trim().split(/[\r\n]+/).forEach((line) => {
+        const responseHeaders = new Headers();
+        const rawHeaders = xhr.getAllResponseHeaders().trim();
+        if (rawHeaders) rawHeaders.split(/[\r\n]+/).forEach((line) => {
           const parts = line.split(': ');
           const key = parts.shift();
-          if (key) headers.append(key, parts.join(': '));
+          if (key) responseHeaders.append(key, parts.join(': '));
         });
-        const response = new Response(xhr.responseText, { status: xhr.status, statusText: xhr.statusText, headers });
+        const response = new Response(xhr.responseText, { status: xhr.status, statusText: xhr.statusText, headers: responseHeaders });
         resolve(response);
-
-        if (isImport && xhr.status >= 200 && xhr.status < 300 && projectName) {
-          currentProject = projectName;
-          lastPhase = 'TRANSCRIBING';
-          pollProjectProgress(projectName, 'TRANSCRIBING');
-        }
-        if (isBatch && xhr.status >= 200 && xhr.status < 300 && projectName) {
-          currentProject = projectName;
-          lastPhase = 'PROCESSING';
-          pollProjectProgress(projectName, 'PROCESSING');
-        }
+        if (isImport && xhr.status >= 200 && xhr.status < 300 && projectName) pollProjectProgress(projectName, 'TRANSCRIBING');
       };
       xhr.onerror = () => reject(new TypeError('Falha de rede durante a operação.'));
       xhr.onabort = () => reject(new DOMException('Operação cancelada.', 'AbortError'));
@@ -173,9 +159,9 @@
   window.fetch = (input, options = {}) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     const method = String(options.method || (typeof input !== 'string' ? input.method : 'GET')).toUpperCase();
-    if ((/\/api\/import$/.test(url) && method === 'POST' && options.body instanceof FormData) || (/\/api\/projects\/[^/]+\/generate-all$/.test(url) && method === 'POST')) {
-      return xhrFetch(url, { ...options, method });
-    }
+    const isImport = /\/api\/import$/.test(url) && method === 'POST' && options.body instanceof FormData;
+    const isBatch = /\/api\/projects\/[^/]+\/generate-all$/.test(url) && method === 'POST';
+    if (isImport || isBatch) return xhrFetch(url, { ...options, method });
     return originalFetch(input, options);
   };
 
