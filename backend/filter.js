@@ -1,9 +1,17 @@
 import { buildThemeFilter } from './theme.js';
 import { buildProfileFilter, buildProfileInputs } from './profile.js';
 import fs from 'node:fs';
+import path from 'node:path';
 
 export const OUTPUT_WIDTH = 1080;
 export const OUTPUT_HEIGHT = 1920;
+
+function findArrobaPng() {
+  const dir = path.join(process.cwd(), 'arroba');
+  if (!fs.existsSync(dir)) return '';
+  const name = fs.readdirSync(dir).filter((item) => item.toLowerCase().endsWith('.png')).sort()[0];
+  return name ? path.join(dir, name) : '';
+}
 
 export function escapeFilterText(text) {
   return String(text)
@@ -25,6 +33,7 @@ export function buildVideoFilter(options = {}) {
   } = options;
   const w = OUTPUT_WIDTH;
   const h = OUTPUT_HEIGHT;
+  const resolvedHandleImage = handleImagePath || findArrobaPng();
 
   const parts = [
     `[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}:(iw-${w})/2:(ih-${h})/2[base]`,
@@ -41,7 +50,7 @@ export function buildVideoFilter(options = {}) {
   }
 
   const hasAvatar = Boolean(avatarPath) && fs.existsSync(avatarPath);
-  const hasHandleImage = Boolean(handleImagePath) && fs.existsSync(handleImagePath);
+  const hasHandleImage = Boolean(resolvedHandleImage) && fs.existsSync(resolvedHandleImage);
   const hasBadge = Boolean(verificationPath) && fs.existsSync(verificationPath);
   const hasHandle = Boolean(handle) && handle.trim();
 
@@ -50,7 +59,7 @@ export function buildVideoFilter(options = {}) {
       handle,
       fontPath,
       avatarPath,
-      handleImagePath,
+      arrobaPath: resolvedHandleImage,
       verificationPath,
       inputLabel: lastLabel,
     });
@@ -62,7 +71,11 @@ export function buildVideoFilter(options = {}) {
     parts.push(`[${lastLabel}]null[v]`);
   }
 
-  const extraInputs = buildProfileInputs({ avatarPath, handleImagePath, verificationPath });
+  const extraInputs = buildProfileInputs({
+    avatarPath,
+    arrobaPath: resolvedHandleImage,
+    verificationPath,
+  });
 
   return { filter: parts.join(';'), extraInputs };
 }
