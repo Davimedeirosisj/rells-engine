@@ -22,9 +22,14 @@ router.get('/projects/:name/srt', async (req, res) => {
   try {
     const sanitized = sanitizeFilename(req.params.name);
     const projectDir = safeJoin(config.dirs.projects, sanitized);
-    if (!existsSync(path.join(projectDir, 'manifest.json'))) throw new Error(`Projeto "${sanitized}" não encontrado.`);
-    const srtPath = path.join(projectDir, 'original.srt');
-    if (!existsSync(srtPath)) throw new Error('original.srt não encontrado para este projeto.');
+    const manifestPath = path.join(projectDir, 'manifest.json');
+    if (!existsSync(manifestPath)) throw new Error(`Projeto "${sanitized}" não encontrado.`);
+
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+    const srtPath = manifest.transcription?.srtPath;
+    if (!srtPath || !path.isAbsolute(srtPath)) throw new Error('SRT da transcrição não está disponível.');
+    if (!existsSync(srtPath)) throw new Error('SRT temporário não encontrado. Gere a transcrição novamente.');
+
     const content = await fs.readFile(srtPath, 'utf8');
     res.setHeader('Content-Type', 'application/x-subrip; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="original.srt"');
