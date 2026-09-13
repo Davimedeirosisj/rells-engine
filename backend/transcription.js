@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { config } from './config.js';
 import { safeJoin } from './fs-utils.js';
 import { transcribeVideo, checkWhisperAvailability, whisperConfig, srtBlockCount } from './transcribe.js';
@@ -17,25 +19,26 @@ async function persist(ref) {
   await fs.writeFile(ref.manifestPath, JSON.stringify(ref.manifest, null, 2), 'utf8');
 }
 
+function getStoredSrtPath(ref) {
+  return ref.manifest.transcription?.srtPath || null;
+}
+
 export function deriveTranscriptionStatus(ref) {
   const m = ref.manifest;
   const stored = m.transcription && m.transcription.status;
-  const sourceSrt = m.sourceSrt || (m.transcription && m.transcription.srtPath) || null;
-  const srtPath = sourceSrt ? path.join(ref.dir, sourceSrt) : null;
+  const srtPath = getStoredSrtPath(ref);
+  const srtExists = !!(srtPath && existsSync(srtPath));
 
   let status = stored || null;
-  if (!status) {
-    status = (sourceSrt && srtPath && existsSync(srtPath)) ? 'SRT_READY' : 'UPLOAD';
-  } else if (status === 'SRT_READY' && (!srtPath || !existsSync(srtPath))) {
-    status = 'ERROR';
-  }
+  if (!status) status = srtExists ? 'SRT_READY' : 'UPLOAD';
+  else if (status === 'SRT_READY' && !srtExists) status = 'ERROR';
 
   return {
     ...(m.transcription || {}),
     status,
-    sourceSrt,
+    sourceSrt: null,
     srtPath,
-    srtExists: !!(srtPath && existsSync(srtPath)),
+    srtExists,
   };
 }
 
@@ -49,19 +52,22 @@ export async function getTranscriptionStatus(name) {
     const stat = await fs.stat(srt);
     srtSizeBytes = stat.size;
     srtBlocks = srtBlockCount(srt);
-  } else if (ref.manifest.transcription && ref.manifest.transcription.srtBlocks) {
+  } else if (ref.manifest.transcription?.srtBlocks) {
     srtBlocks = ref.manifest.transcription.srtBlocks;
   }
   return { ...base, srtSizeBytes, srtBlocks };
 }
 
-export async function applyTranscriptionReady(ref, { durationMs } = {}) {
-  const srtPath = path.join(ref.dir, 'original.srt');
-  ref.manifest.sourceSrt = 'original.srt';
+export async function applyTranscriptionReady(ref, { srtPath, durationMs } = {}) {
+  if (!srtPath || !existsSync(srtPath)) {
+    throw new Error(`SRT da transcrição não encontrado: ${srtPath || '(caminho ausente)'}`);
+  }
+
+  ref.manifest.sourceSrt = null;
   ref.manifest.transcription = {
     ...(ref.manifest.transcription || {}),
     status: 'SRT_READY',
-    srtPath: 'original.srt',
+    srtPath: path.resolve(srtPath),
     srtBlocks: srtBlockCount(srtPath),
     model: whisperConfig.model,
     language: whisperConfig.language,
@@ -73,6 +79,7 @@ export async function applyTranscriptionReady(ref, { durationMs } = {}) {
 }
 
 export async function applyTranscriptionError(ref, { message, stderr, exitCode } = {}) {
+  ref.manifest.sourceSrt = null;
   ref.manifest.transcription = {
     ...(ref.manifest.transcription || {}),
     status: 'ERROR',
@@ -85,12 +92,20 @@ export async function applyTranscriptionError(ref, { message, stderr, exitCode }
 }
 
 export async function markTranscribing(ref) {
+  ref.manifest.sourceSrt = null;
   ref.manifest.transcription = {
     ...(ref.manifest.transcription || {}),
     status: 'TRANSCRIBING',
+    srtPath: null,
     startedAt: new Date().toISOString(),
   };
   await persist(ref);
+}
+
+async function createTranscriptionTempDir() {
+  const root = path.join(os.tmpdir(), 'rells-engine-transcriptions');
+  await fs.mkdir(root, { recursive: true });
+  return fs.mkdtemp(path.join(root, `srt-${crypto.randomUUID()}-`));
 }
 
 async function runJob(name, videoPath, outputDir) {
@@ -105,19 +120,13 @@ async function runJob(name, videoPath, outputDir) {
 
   try {
     const { srtPath } = await transcribeVideo({ videoPath, outputDir });
-    const projectSrtPath = path.join(ref.dir, 'original.srt');
-    if (path.resolve(srtPath) !== path.resolve(projectSrtPath)) {
-      await fs.copyFile(srtPath, projectSrtPath);
-    }
-    await applyTranscriptionReady(ref);
-    console.log(`[INFO] Transcrição concluída (${Math.round((Date.now() - started) / 1000)}s). SRT: ${projectSrtPath}`);
+    await applyTranscriptionReady(ref, { srtPath });
+    console.log(`[INFO] Transcrição concluída (${Math.round((Date.now() - started) / 1000)}s). SRT temporário: ${srtPath}`);
   } catch (err) {
     console.error(`[ERROR] Transcrição falhou: ${err.message}`);
     if (err.stderr) console.error(`[WHISPER-STDERR]\n${String(err.stderr).slice(0, 2000)}`);
     const freshRef = await readProjectState(name).catch(() => ref);
-    if (freshRef) {
-      await applyTranscriptionError(freshRef, { message: err.message, stderr: err.stderr, exitCode: err.exitCode });
-    }
+    if (freshRef) await applyTranscriptionError(freshRef, { message: err.message, stderr: err.stderr, exitCode: err.exitCode });
   }
 }
 
@@ -135,9 +144,7 @@ export async function startTranscription(name) {
     return { status: 'ERROR', error: availability.error };
   }
 
-  // O diretório do projeto é o workspace estável da transcrição.
-  // O SRT final é normalizado para original.srt antes de marcar SRT_READY.
-  const outputDir = ref.dir;
+  const outputDir = await createTranscriptionTempDir();
   await markTranscribing(ref);
   runJob(name, videoPath, outputDir).catch(() => {});
   return { status: 'TRANSCRIBING', command: availability.program };
