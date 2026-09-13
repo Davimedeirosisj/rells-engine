@@ -14,7 +14,7 @@ export function buildProfileInputs({ arrobaPath }) {
 export function buildProfileFilter({ arrobaPath, inputLabel = 'base' }) {
   const parts = [];
   const centerY = Math.round(PROFILE_Y_RATIO * 1920);
-  const x = Math.round((1920 - ARROBA_SIZE) / 2);
+  const x = Math.round((1080 - ARROBA_SIZE) / 2);
   const y = centerY;
 
   let lastLabel = inputLabel;
