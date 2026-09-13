@@ -1,17 +1,9 @@
-import { existsSync } from 'node:fs';
 import { getProject, saveManifest } from '../projects.js';
 import { processCut } from './cut.js';
-import { config } from '../config.js';
 import { setProgress } from '../progress.js';
 
 export async function generateAllCuts(projectName, processor = processCut) {
   const { dir, manifest } = await getProject(projectName);
-
-  if (!existsSync(config.fontPath)) {
-    throw new Error(
-      `Fonte não encontrada em ${config.fontPath}. Adicione o arquivo Gobold-Bold.ttf para processar.`,
-    );
-  }
 
   const cuts = manifest.cuts || [];
   const results = { total: cuts.length, completed: 0, failed: 0, skipped: 0, cuts: [] };
@@ -26,7 +18,6 @@ export async function generateAllCuts(projectName, processor = processCut) {
 
   for (let i = 0; i < cuts.length; i++) {
     const cut = cuts[i];
-    
     if (cut.status === 'CONCLUÍDO') {
       results.skipped += 1;
       completedBefore += 1;
