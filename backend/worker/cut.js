@@ -12,7 +12,7 @@ function assertFontAvailable() {
     );
   }
 }
-export async function processCut(dir, manifest, cut, index) {
+export async function processCut(dir, manifest, cut, index, progress = {}) {
   const originalVideoPath = path.join(dir, manifest.sourceVideo);
   const outputFilename = cut.outputFilename || cutOutputFilename(index + 1, cut.title);
   const outputPath = path.join(dir, 'output', outputFilename);
@@ -26,6 +26,8 @@ export async function processCut(dir, manifest, cut, index) {
       handle: config.profileHandle,
       avatarPath: config.avatarPath,
       verificationPath: config.verificationPath,
+      totalDurationMs: Math.max(1, cut.endMs - cut.startMs),
+      onProgress: progress.onProgress,
     });
     const validation = await validateRenderedMp4(outputPath, {
       startMs: cut.startMs,
