@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { getFfmpegBin } from './system.js';
 import { buildVideoFilter } from './filter.js';
-import { config } from './config.js';
+import { assertFontAvailable } from './fonts.js';
 
 export function msToFfmpegTime(ms) {
   const total = Math.round(ms);
@@ -17,7 +17,8 @@ export function msToFfmpegTime(ms) {
 export function buildCutCommand(inputPath, startMs, endMs, { theme = '', handle, avatarPath, verificationPath } = {}) {
   const start = msToFfmpegTime(startMs);
   const end = msToFfmpegTime(endMs);
-  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath: config.fontPath, handle, avatarPath, verificationPath });
+  const fontPath = assertFontAvailable();
+  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath, handle, avatarPath, verificationPath });
   const args = ['-y', '-ss', start, '-to', end, '-i', inputPath];
   for (const extra of extraInputs) args.push('-i', extra);
   args.push('-filter_complex', filter, '-map', '[v]', '-map', '0:a:0', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart');
@@ -27,7 +28,8 @@ export function buildCutCommand(inputPath, startMs, endMs, { theme = '', handle,
 export function buildPreviewCommand(inputPath, startMs, endMs, { theme = '', handle, avatarPath, verificationPath, durationMs } = {}) {
   const start = msToFfmpegTime(startMs);
   const previewDuration = durationMs || Math.min(endMs - startMs, 3000);
-  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath: config.fontPath, handle, avatarPath, verificationPath });
+  const fontPath = assertFontAvailable();
+  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath, handle, avatarPath, verificationPath });
   const args = ['-y', '-ss', start, '-t', msToFfmpegTime(previewDuration), '-i', inputPath];
   for (const extra of extraInputs) args.push('-i', extra);
   args.push('-filter_complex', filter, '-map', '[v]', '-map', '0:a:0', '-r', '30', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '32', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart');
