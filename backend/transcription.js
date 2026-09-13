@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { config } from './config.js';
 import { safeJoin } from './fs-utils.js';
 import { transcribeVideo, checkWhisperAvailability, whisperConfig, srtBlockCount } from './transcribe.js';
+import { setProgress, getProgress } from './progress.js';
 
 async function readProjectState(name) {
   const dir = safeJoin(config.dirs.projects, name);
@@ -55,7 +56,8 @@ export async function getTranscriptionStatus(name) {
   } else if (ref.manifest.transcription?.srtBlocks) {
     srtBlocks = ref.manifest.transcription.srtBlocks;
   }
-  return { ...base, srtSizeBytes, srtBlocks };
+  const live = getProgress(name);
+  return { ...base, srtSizeBytes, srtBlocks, progress: live };
 }
 
 export async function applyTranscriptionReady(ref, { srtPath, durationMs } = {}) {
@@ -118,15 +120,62 @@ async function runJob(name, videoPath, outputDir) {
     return;
   }
 
+  const totalDurationMs = Number(ref.manifest.videoDurationMs) || null;
+  setProgress(name, {
+    status: 'TRANSCRIBING',
+    stage: 'WHISPER',
+    progress: 0,
+    elapsedSeconds: 0,
+    estimatedRemainingSeconds: null,
+    speed: null,
+    currentTimeMs: 0,
+    totalDurationMs,
+    message: 'Preparando o Whisper…',
+    startedAt: new Date().toISOString(),
+  });
+
   try {
-    const { srtPath } = await transcribeVideo({ videoPath, outputDir });
+    const { srtPath } = await transcribeVideo({
+      videoPath,
+      outputDir,
+      onProgress: ({ progress, elapsedSeconds, speed, estimatedRemainingSeconds }) => {
+        setProgress(name, {
+          status: 'TRANSCRIBING',
+          stage: 'WHISPER',
+          progress,
+          elapsedSeconds,
+          estimatedRemainingSeconds,
+          speed,
+          currentTimeMs: totalDurationMs ? totalDurationMs * (progress / 100) : null,
+          totalDurationMs,
+          message: progress > 0 ? 'Transcrevendo áudio…' : 'Carregando modelo e preparando áudio…',
+        });
+      },
+    });
     await applyTranscriptionReady(ref, { srtPath });
-    console.log(`[INFO] Transcrição concluída (${Math.round((Date.now() - started) / 1000)}s). SRT temporário: ${srtPath}`);
+    const elapsedSeconds = (Date.now() - started) / 1000;
+    setProgress(name, {
+      status: 'SRT_READY',
+      stage: 'READY',
+      progress: 100,
+      elapsedSeconds,
+      estimatedRemainingSeconds: 0,
+      currentTimeMs: totalDurationMs,
+      totalDurationMs,
+      message: 'Transcrição concluída. Escolha onde salvar o SRT.',
+    });
+    console.log(`[INFO] Transcrição concluída (${Math.round(elapsedSeconds)}s). SRT temporário: ${srtPath}`);
   } catch (err) {
     console.error(`[ERROR] Transcrição falhou: ${err.message}`);
     if (err.stderr) console.error(`[WHISPER-STDERR]\n${String(err.stderr).slice(0, 2000)}`);
     const freshRef = await readProjectState(name).catch(() => ref);
     if (freshRef) await applyTranscriptionError(freshRef, { message: err.message, stderr: err.stderr, exitCode: err.exitCode });
+    setProgress(name, {
+      status: 'ERROR',
+      stage: 'WHISPER',
+      message: err.message,
+      elapsedSeconds: (Date.now() - started) / 1000,
+    });
   }
 }
 
@@ -146,6 +195,18 @@ export async function startTranscription(name) {
 
   const outputDir = await createTranscriptionTempDir();
   await markTranscribing(ref);
+  setProgress(name, {
+    status: 'TRANSCRIBING',
+    stage: 'WHISPER',
+    progress: 0,
+    elapsedSeconds: 0,
+    estimatedRemainingSeconds: null,
+    speed: null,
+    currentTimeMs: 0,
+    totalDurationMs: Number(ref.manifest.videoDurationMs) || null,
+    message: 'Iniciando transcrição…',
+    startedAt: new Date().toISOString(),
+  });
   runJob(name, videoPath, outputDir).catch(() => {});
   return { status: 'TRANSCRIBING', command: availability.program };
 }
