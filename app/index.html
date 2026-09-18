@@ -241,10 +241,43 @@
           <div class="table-wrap hidden" id="cut-table-wrap">
             <table class="data-table cut-table">
               <thead>
-                <tr><th>#</th><th>TEMA</th><th>TÍTULO</th><th>TEMPO</th><th>STATUS</th><th>AÇÃO</th></tr>
+                <tr><th>#</th><th>TEMA</th><th>TÍTULO</th><th>TEMPO</th><th>TÍTULO NO VÍDEO</th><th>ARROBA</th><th>STATUS</th><th>AÇÃO</th></tr>
               </thead>
               <tbody id="cut-tbody"></tbody>
             </table>
+          </div>
+          <div class="panel" id="project-options-panel">
+            <div class="panel-head">
+              <h3>Opções do projeto</h3>
+              <p>Padrões aplicados aos cortes deste projeto. Cortes individuais podem sobrescrever.</p>
+            </div>
+            <div class="grid-3">
+              <label class="field">
+                <span class="field-label">TÍTULO NO VÍDEO</span>
+                <select id="proj-title-mode" class="input">
+                  <option value="overlay">Sobrepor no vídeo</option>
+                  <option value="filename">Só no nome do arquivo</option>
+                  <option value="hidden">Ocultar</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">ARROBA</span>
+                <select id="proj-show-arroba" class="input">
+                  <option value="1" selected>Mostrar</option>
+                  <option value="0">Ocultar</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">PNG DA ARROBA DO PROJETO</span>
+                <input id="proj-arroba-file" class="input file-input" type="file" accept=".png" />
+                <button id="proj-arroba-upload" class="btn btn-secondary" type="button">Enviar PNG</button>
+                <button id="proj-arroba-reset" class="btn btn-ghost" type="button">Usar padrão global</button>
+                <img id="proj-arroba-preview" class="arroba-preview hidden" alt="Arroba do projeto" />
+              </label>
+            </div>
+            <div class="btn-row">
+              <button id="proj-save-settings" class="btn btn-primary" type="button">SALVAR OPÇÕES DO PROJETO</button>
+            </div>
           </div>
           <div id="error-list"></div>
         </div>
@@ -272,10 +305,50 @@
 
       <!-- ===== CONFIGURAÇÕES ===== -->
       <section class="view" id="view-settings">
+        <div class="card" id="custom-card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>Personalização</h2>
+              <p>Padrões globais aplicados a todos os projetos (podem ser alterados por projeto/corte).</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="grid-3">
+              <label class="field">
+                <span class="field-label">TÍTULO NO VÍDEO</span>
+                <select id="settings-title-mode" class="input">
+                  <option value="overlay">Sobrepor no vídeo</option>
+                  <option value="filename">Só no nome do arquivo</option>
+                  <option value="hidden">Ocultar</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">ARROBA</span>
+                <select id="settings-show-arroba" class="input">
+                  <option value="1" selected>Mostrar</option>
+                  <option value="0">Ocultar</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">PNG GLOBAL DA ARROBA</span>
+                <input id="settings-arroba-file" class="input file-input" type="file" accept=".png" />
+                <div class="btn-row">
+                  <button id="settings-arroba-upload" class="btn btn-secondary" type="button">Enviar PNG</button>
+                  <button id="settings-arroba-reset" class="btn btn-ghost" type="button">Resetar para pasta arroba/</button>
+                </div>
+                <img id="settings-arroba-preview" class="arroba-preview hidden" alt="Arroba global" />
+              </label>
+            </div>
+            <div class="btn-row">
+              <button id="settings-save-btn" class="btn btn-primary" type="button">SALVAR PADRÕES GLOBAIS</button>
+            </div>
+            <div id="settings-result" class="cuts-result" hidden></div>
+          </div>
+        </div>
         <div class="card">
           <div class="card-head">
             <div class="card-title">
-              <h2>Configurações</h2>
+              <h2>Status do sistema</h2>
               <p>Status do sistema e do ambiente local.</p>
             </div>
           </div>

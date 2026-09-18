@@ -3,5 +3,7 @@ node_modules/
 projects/
 temp/
 output/
+data/
 *.log
+global-settings.json
 .DS_Store

@@ -1,34 +1,44 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildProfileFilter, buildProfileInputs, PROFILE_Y_RATIO } from '../backend/profile.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { buildProfileFilter, buildProfileInputs } from '../backend/profile.js';
 
-const AVATAR = 'C:\\WINDOWS\\Fonts\\arialbd.ttf';
-const FONT = 'C:\\WINDOWS\\Fonts\\arialbd.ttf';
+function tempPng() {
+  const p = path.join(os.tmpdir(), `rells-profile-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.png`);
+  fs.writeFileSync(p, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  return p;
+}
 
-test('buildProfileInputs retorna apenas inputs existentes', () => {
-  const r = buildProfileInputs({ avatarPath: AVATAR, verificationPath: 'C:/nao/existe.png' });
-  assert.deepEqual(r, [AVATAR]);
+test('buildProfileInputs retorna o PNG quando existe', () => {
+  const png = tempPng();
+  try {
+    assert.deepEqual(buildProfileInputs({ arrobaPath: png }), [png]);
+  } finally {
+    fs.rmSync(png, { force: true });
+  }
 });
 
-test('buildProfileFilter gera overlay de avatar e drawtext do handle', () => {
-  const r = buildProfileFilter({
-    handle: '@apostololuizhenrique',
-    fontPath: FONT,
-    avatarPath: AVATAR,
-    verificationPath: null,
-  });
-  assert.ok(r.filter.includes('overlay='));
-  assert.ok(r.filter.includes('drawtext'));
-  assert.ok(r.filter.includes("text='@apostololuizhenrique'"));
-  assert.equal(r.lastLabel, 'withhandle');
+test('buildProfileInputs retorna lista vazia sem PNG', () => {
+  assert.deepEqual(buildProfileInputs({ arrobaPath: null }), []);
+  assert.deepEqual(buildProfileInputs({ arrobaPath: 'C:/nao/existe.png' }), []);
+});
+
+test('buildProfileFilter sobrepõe o PNG da arroba por inteiro (1080x1920)', () => {
+  const png = tempPng();
+  try {
+    const r = buildProfileFilter({ arrobaPath: png, inputLabel: 'base' });
+    assert.ok(r.filter.includes('[1:v]format=rgba[arroba]'));
+    assert.ok(r.filter.includes('[base][arroba]overlay=0:0[v]'));
+    assert.equal(r.lastLabel, 'v');
+  } finally {
+    fs.rmSync(png, { force: true });
+  }
 });
 
 test('buildProfileFilter sem perfil retorna vazio e último label = inputLabel', () => {
-  const r = buildProfileFilter({ handle: '', avatarPath: null, verificationPath: null, inputLabel: 'base' });
+  const r = buildProfileFilter({ arrobaPath: null, inputLabel: 'base' });
   assert.equal(r.filter, '');
   assert.equal(r.lastLabel, 'base');
-});
-
-test('PROFILE_Y_RATIO está definido como ~78%', () => {
-  assert.equal(PROFILE_Y_RATIO, 0.78);
 });

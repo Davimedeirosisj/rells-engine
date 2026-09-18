@@ -43,7 +43,14 @@ const ALLOWED_EXTENSIONS = {
   video: ['.mp4', '.mov', '.mkv', '.avi', '.webm', '.m4v'],
   srt: ['.srt'],
   json: ['.json'],
+  png: ['.png'],
 };
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+export function isPngBuffer(buf) {
+  return Buffer.isBuffer(buf) && buf.length >= 8 && PNG_SIGNATURE.equals(buf.subarray(0, 8));
+}
 
 export function validateExtension(filename, kind) {
   const ext = path.extname(String(filename)).toLowerCase();

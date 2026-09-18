@@ -121,6 +121,108 @@
     }
   }
 
+  // ---- Configurações globais (personalização) ----
+  async function loadSettings() {
+    try {
+      const data = await api('/api/settings');
+      const s = data.settings || {};
+      $('#settings-title-mode').value = s.titleMode || 'overlay';
+      $('#settings-show-arroba').value = s.showArroba === false ? '0' : '1';
+      renderArrobaPreview($('#settings-arroba-preview'), s.globalArrobaUrl || null);
+    } catch (e) {
+      showMessage('Erro ao carregar configurações: ' + e.message, 'error');
+    }
+  }
+
+  $('#settings-save-btn').addEventListener('click', async () => {
+    try {
+      await api('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          titleMode: $('#settings-title-mode').value,
+          showArroba: $('#settings-show-arroba').value === '1',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      showMessage('Padrões globais salvos. Novos cortes/previews usarão estas opções.', 'success');
+    } catch (e) {
+      showMessage('Erro ao salvar padrões globais: ' + e.message, 'error');
+    }
+  });
+
+  $('#settings-arroba-upload').addEventListener('click', async () => {
+    const file = $('#settings-arroba-file').files[0];
+    if (!file) return showMessage('Selecione um PNG para enviar.', 'error');
+    const fd = new FormData();
+    fd.append('image', file);
+    try {
+      await api('/api/settings/arroba', { method: 'POST', body: fd });
+      showMessage('PNG global da arroba atualizado.', 'success');
+      $('#settings-arroba-file').value = '';
+      await loadSettings();
+    } catch (e) {
+      showMessage('Erro ao enviar PNG: ' + e.message, 'error');
+    }
+  });
+
+  $('#settings-arroba-reset').addEventListener('click', async () => {
+    try {
+      await api('/api/settings/arroba', { method: 'DELETE' });
+      showMessage('PNG global removido (voltou para a pasta arroba/).', 'success');
+      await loadSettings();
+    } catch (e) {
+      showMessage('Erro ao resetar PNG: ' + e.message, 'error');
+    }
+  });
+
+  // ---- Opções do projeto ----
+  $('#proj-save-settings').addEventListener('click', async () => {
+    const p = state.current;
+    if (!p) return showMessage('Abra um projeto primeiro.', 'error');
+    try {
+      await api(`/api/projects/${encodeURIComponent(p.name)}/settings`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          titleMode: $('#proj-title-mode').value,
+          showArroba: $('#proj-show-arroba').value === '1',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      showMessage('Opções do projeto salvas. Clique em Preview para conferir.', 'success');
+      await openProject(p.name);
+    } catch (e) {
+      showMessage('Erro ao salvar opções do projeto: ' + e.message, 'error');
+    }
+  });
+
+  $('#proj-arroba-upload').addEventListener('click', async () => {
+    const p = state.current;
+    const file = $('#proj-arroba-file').files[0];
+    if (!p || !file) return showMessage('Abra um projeto e selecione um PNG.', 'error');
+    const fd = new FormData();
+    fd.append('image', file);
+    try {
+      await api(`/api/projects/${encodeURIComponent(p.name)}/arroba`, { method: 'POST', body: fd });
+      showMessage('PNG da arroba do projeto atualizado.', 'success');
+      $('#proj-arroba-file').value = '';
+      await openProject(p.name);
+    } catch (e) {
+      showMessage('Erro ao enviar PNG: ' + e.message, 'error');
+    }
+  });
+
+  $('#proj-arroba-reset').addEventListener('click', async () => {
+    const p = state.current;
+    if (!p) return showMessage('Abra um projeto primeiro.', 'error');
+    try {
+      await api(`/api/projects/${encodeURIComponent(p.name)}/arroba`, { method: 'DELETE' });
+      showMessage('Arroba do projeto removida (voltará a usar o padrão global).', 'success');
+      await openProject(p.name);
+    } catch (e) {
+      showMessage('Erro ao remover arroba: ' + e.message, 'error');
+    }
+  });
+
   // ---- Etapa 1 — Importar vídeo ----
   const videoInput = $('#video');
   const videoNameEl = $('#video-name');
@@ -480,9 +582,30 @@
       $('#detail-export').disabled = cuts.length === 0;
       renderCutTable(cuts);
       renderValidationErrors(state.current.manifest);
+      populateProjectOptions();
       setView('projects');
     } catch (e) {
       showMessage('Erro ao abrir projeto: ' + e.message, 'error');
+    }
+  }
+
+  function populateProjectOptions() {
+    const p = state.current;
+    if (!p) return;
+    const settings = (p.manifest && p.manifest.settings) || {};
+    $('#proj-title-mode').value = settings.titleMode || 'overlay';
+    $('#proj-show-arroba').value = settings.showArroba === false ? '0' : '1';
+    renderArrobaPreview($('#proj-arroba-preview'), p.customArrobaUrl);
+  }
+
+  function renderArrobaPreview(img, url) {
+    if (!img) return;
+    if (url) {
+      img.src = url;
+      img.classList.remove('hidden');
+    } else {
+      img.classList.add('hidden');
+      img.removeAttribute('src');
     }
   }
 
@@ -495,6 +618,28 @@
       return;
     }
     wrap.classList.remove('hidden');
+    const p = state.current;
+    const projSettings = (p && p.manifest && p.manifest.settings) || {};
+
+    const eff = (c, key) => {
+      const cutOpts = c.options || {};
+      if (key === 'titleMode') return cutOpts.titleMode || projSettings.titleMode || 'overlay';
+      const cutVal = cutOpts.showArroba !== undefined ? cutOpts.showArroba : projSettings.showArroba;
+      return cutVal !== undefined ? cutVal !== false : true;
+    };
+
+    const titleSel = (c) =>
+      `<select class="input cut-title-mode" data-id="${c.id}">
+        <option value="overlay" ${eff(c, 'titleMode') === 'overlay' ? 'selected' : ''}>Sobrepor</option>
+        <option value="filename" ${eff(c, 'titleMode') === 'filename' ? 'selected' : ''}>Só no arquivo</option>
+        <option value="hidden" ${eff(c, 'titleMode') === 'hidden' ? 'selected' : ''}>Ocultar</option>
+      </select>`;
+    const arrobaSel = (c) =>
+      `<select class="input cut-show-arroba" data-id="${c.id}">
+        <option value="1" ${eff(c, 'showArroba') ? 'selected' : ''}>Mostrar</option>
+        <option value="0" ${!eff(c, 'showArroba') ? 'selected' : ''}>Ocultar</option>
+      </select>`;
+
     tbody.innerHTML = cuts.map((c, i) => {
       const st = String(c.status || 'PENDENTE').toUpperCase();
       const cls = ['CONCLUÍDO', 'CONCLUIDO', 'PRONTO', 'OK'].includes(st) ? 'ok' : 'pending';
@@ -503,6 +648,8 @@
         <td>${escHtml(c.theme || '—')}</td>
         <td>${escHtml(c.title || '—')}</td>
         <td class="mono">${fmtMs(c.startMs)} → ${fmtMs(c.endMs)}</td>
+        <td>${titleSel(c)}</td>
+        <td>${arrobaSel(c)}</td>
         <td><span class="status-badge ${cls}">${escHtml(st)}</span></td>
         <td class="actions">
           <button class="btn btn-secondary" data-preview="${escHtml(c.id)}" type="button">Preview</button>
@@ -515,6 +662,26 @@
       b.addEventListener('click', () => previewCut(b.dataset.preview)));
     tbody.querySelectorAll('[data-gen]').forEach((b) =>
       b.addEventListener('click', () => generateCut(b.dataset.gen)));
+    tbody.querySelectorAll('.cut-title-mode').forEach((sel) =>
+      sel.addEventListener('change', () => setCutOption(sel.dataset.id, { titleMode: sel.value })));
+    tbody.querySelectorAll('.cut-show-arroba').forEach((sel) =>
+      sel.addEventListener('change', () => setCutOption(sel.dataset.id, { showArroba: sel.value === '1' })));
+  }
+
+  async function setCutOption(cutId, patch) {
+    const p = state.current;
+    if (!p) return;
+    try {
+      await api(`/api/projects/${encodeURIComponent(p.name)}/cuts/${encodeURIComponent(cutId)}/options`, {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      showMessage(`Opções do corte ${cutId} salvas. Clique em Preview para conferir.`, 'success');
+    } catch (e) {
+      showMessage('Erro ao salvar opções do corte: ' + e.message, 'error');
+    }
+    await openProject(p.name);
   }
 
   function renderValidationErrors(manifest) {
@@ -612,6 +779,7 @@
     hideMessage();
     loadHealth();
     await refreshProjects();
+    loadSettings();
     setWorkflowStep(1);
   })();
 })();

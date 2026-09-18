@@ -26,7 +26,7 @@ export function escapeFilterText(text) {
 }
 
 export function buildVideoFilter(options = {}) {
-  const { theme, fontPath, handleImagePath } = options;
+  const { theme, fontPath, handleImagePath, titleMode = 'overlay', showArroba = true } = options;
   const w = OUTPUT_WIDTH;
   const h = OUTPUT_HEIGHT;
 
@@ -39,7 +39,9 @@ export function buildVideoFilter(options = {}) {
 
   let lastLabel = 'base';
 
-  if (theme && theme.trim()) {
+  // Título sobre o vídeo somente no modo "overlay".
+  const showTitle = titleMode === 'overlay' && theme && theme.trim();
+  if (showTitle) {
     const themeFilter = buildThemeFilter(theme, fontPath);
     if (themeFilter) {
       parts.push(`[${lastLabel}]${themeFilter.filter}[v]`);
@@ -49,7 +51,7 @@ export function buildVideoFilter(options = {}) {
 
   // Identificação do perfil: somente o PNG da pasta "arroba".
   // Não renderizar nome, texto de arroba, avatar ou selo de verificação.
-  if (resolvedHandleImage && fs.existsSync(resolvedHandleImage)) {
+  if (showArroba !== false && resolvedHandleImage && fs.existsSync(resolvedHandleImage)) {
     const profile = buildProfileFilter({
       arrobaPath: resolvedHandleImage,
       inputLabel: lastLabel,
@@ -62,7 +64,7 @@ export function buildVideoFilter(options = {}) {
     parts.push(`[${lastLabel}]null[v]`);
   }
 
-  const extraInputs = buildProfileInputs({ arrobaPath: resolvedHandleImage });
+  const extraInputs = showArroba !== false ? buildProfileInputs({ arrobaPath: resolvedHandleImage }) : [];
 
   return { filter: parts.join(';'), extraInputs };
 }

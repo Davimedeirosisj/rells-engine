@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { msToFfmpegTime, buildCutCommand, buildPreviewCommand } from '../backend/ffmpeg.js';
 import { buildVideoFilter, OUTPUT_WIDTH, OUTPUT_HEIGHT, escapeFilterText } from '../backend/filter.js';
 
@@ -46,12 +49,37 @@ test('buildCutCommand gera array (sem shell/concatenação)', () => {
   assert.ok(args.every((a) => typeof a === 'string'));
 });
 
-test('buildVideoFilter produz 1080x1920 (9:16)', () => {
-  const result = buildVideoFilter();
+test('buildVideoFilter produz 1080x1920 (9:16) sem extras quando desligado', () => {
+  const result = buildVideoFilter({ titleMode: 'hidden', showArroba: false });
   assert.ok(result.filter.includes('scale=1080:1920'));
-  assert.ok(result.filter.includes('overlay=(W-w)/2:(H-h)/2'));
+  assert.ok(result.filter.includes('[base]null[v]'));
   assert.match(result.filter, /\[v\]$/);
   assert.deepEqual(result.extraInputs, []);
+});
+
+test('buildVideoFilter titleMode=overlay desenha o tema', () => {
+  const font = path.join(os.tmpdir(), `rells-font-${Date.now()}.ttf`);
+  fs.writeFileSync(font, 'fake');
+  try {
+    const withTitle = buildVideoFilter({ theme: 'TEMA', fontPath: font, titleMode: 'overlay', showArroba: false });
+    assert.ok(withTitle.filter.includes('drawtext'));
+    assert.ok(withTitle.filter.includes("text='TEMA'"));
+    assert.ok(!withTitle.filter.includes('overlay='));
+
+    const filenameOnly = buildVideoFilter({ theme: 'TEMA', fontPath: font, titleMode: 'filename', showArroba: false });
+    assert.ok(!filenameOnly.filter.includes('drawtext'));
+
+    const hidden = buildVideoFilter({ theme: 'TEMA', fontPath: font, titleMode: 'hidden', showArroba: false });
+    assert.ok(!hidden.filter.includes('drawtext'));
+  } finally {
+    fs.rmSync(font, { force: true });
+  }
+});
+
+test('buildVideoFilter showArroba=false remove overlay e inputs extras', () => {
+  const withArroba = buildVideoFilter({ theme: '', showArroba: false });
+  assert.ok(!withArroba.filter.includes('overlay='));
+  assert.deepEqual(withArroba.extraInputs, []);
 });
 
 test('OUTPUT_WIDTH/OUTPUT_HEIGHT estão no formato 9:16', () => {

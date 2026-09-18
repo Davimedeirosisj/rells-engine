@@ -12,6 +12,7 @@ import previewRouter from './routes/preview.js';
 import batchRouter from './routes/batch.js';
 import exportRouter from './routes/export.js';
 import mediaRouter from './routes/media.js';
+import settingsRouter from './routes/settings.js';
 
 export function createApp() {
   const app = express();
@@ -41,6 +42,7 @@ export function createApp() {
   app.use('/api', previewRouter);
   app.use('/api', batchRouter);
   app.use('/api', exportRouter);
+  app.use('/api', settingsRouter);
   app.use('/', mediaRouter);
 
   app.use((err, _req, res, _next) => {

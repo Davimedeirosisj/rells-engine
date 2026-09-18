@@ -3,10 +3,13 @@ import { getProject, saveManifest, findCut, cutOutputFilename } from '../project
 import { executeCut } from '../ffmpeg.js';
 import { config } from '../config.js';
 import { validateRenderedMp4 } from '../validate.js';
+import { resolveRenderOptions } from '../render-options.js';
 
 export async function processCut(dir, manifest, cut, index, progress = {}) {
   const originalVideoPath = path.join(dir, manifest.sourceVideo);
-  const outputFilename = cut.outputFilename || cutOutputFilename(index + 1, cut.title);
+  const render = resolveRenderOptions(cut, { projectSettings: manifest.settings, projectDir: dir });
+  const titleForFile = render.titleMode === 'hidden' ? 'corte' : cut.title;
+  const outputFilename = cut.outputFilename || cutOutputFilename(index + 1, titleForFile);
   const outputPath = path.join(dir, 'output', outputFilename);
 
   cut.status = 'PROCESSANDO';
@@ -15,6 +18,9 @@ export async function processCut(dir, manifest, cut, index, progress = {}) {
   try {
     await executeCut(originalVideoPath, cut.startMs, cut.endMs, outputPath, {
       theme: cut.theme,
+      titleMode: render.titleMode,
+      showArroba: render.showArroba,
+      handleImagePath: render.handleImagePath,
       handle: config.profileHandle,
       avatarPath: config.avatarPath,
       verificationPath: config.verificationPath,

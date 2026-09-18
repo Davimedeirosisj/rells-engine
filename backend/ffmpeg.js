@@ -14,22 +14,22 @@ export function msToFfmpegTime(ms) {
   return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(msPart, 3)}`;
 }
 
-export function buildCutCommand(inputPath, startMs, endMs, { theme = '', handle, avatarPath, handleImagePath, verificationPath } = {}) {
+export function buildCutCommand(inputPath, startMs, endMs, { theme = '', handle, avatarPath, handleImagePath, verificationPath, titleMode = 'overlay', showArroba = true } = {}) {
   const start = msToFfmpegTime(startMs);
   const end = msToFfmpegTime(endMs);
   const fontPath = assertFontAvailable();
-  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath, handle, avatarPath, handleImagePath, verificationPath });
+  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath, handle, avatarPath, handleImagePath, verificationPath, titleMode, showArroba });
   const args = ['-y', '-ss', start, '-to', end, '-i', inputPath];
   for (const extra of extraInputs) args.push('-i', extra);
   args.push('-filter_complex', filter, '-map', '[v]', '-map', '0:a:0', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart');
   return args;
 }
 
-export function buildPreviewCommand(inputPath, startMs, endMs, { theme = '', handle, avatarPath, handleImagePath, verificationPath, durationMs } = {}) {
+export function buildPreviewCommand(inputPath, startMs, endMs, { theme = '', handle, avatarPath, handleImagePath, verificationPath, titleMode = 'overlay', showArroba = true, durationMs } = {}) {
   const start = msToFfmpegTime(startMs);
   const previewDuration = durationMs || Math.min(endMs - startMs, 3000);
   const fontPath = assertFontAvailable();
-  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath, handle, avatarPath, handleImagePath, verificationPath });
+  const { filter, extraInputs } = buildVideoFilter({ theme, fontPath, handle, avatarPath, handleImagePath, verificationPath, titleMode, showArroba });
   const args = ['-y', '-ss', start, '-t', msToFfmpegTime(previewDuration), '-i', inputPath];
   for (const extra of extraInputs) args.push('-i', extra);
   args.push('-filter_complex', filter, '-map', '[v]', '-map', '0:a:0', '-r', '30', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '32', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart');

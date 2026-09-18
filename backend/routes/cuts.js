@@ -7,6 +7,8 @@ import { checkFfmpeg } from '../system.js';
 import { generateCut } from '../worker/cut.js';
 import { importCutsIntoProject } from '../project.js';
 import { validateExtension } from '../fs-utils.js';
+import { getProject, findCut, saveManifest } from '../projects.js';
+import { isValidTitleMode } from '../settings.js';
 
 const router = Router();
 
@@ -62,6 +64,41 @@ router.post('/projects/:name/cuts/:id/generate', async (req, res) => {
 
     const result = await generateCut(req.params.name, id);
     res.json({ ok: true, cut: result.cut });
+  } catch (err) {
+    console.error('[ERROR]', err.message);
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+router.put('/projects/:name/cuts/:id/options', async (req, res) => {
+  try {
+    const { manifest } = await getProject(req.params.name);
+
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ ok: false, error: 'ID de corte inválido.' });
+    }
+
+    const found = findCut(manifest, id);
+    if (!found) {
+      return res.status(404).json({ ok: false, error: `Corte ${id} não encontrado no projeto.` });
+    }
+
+    const { titleMode, showArroba } = req.body || {};
+    const next = { ...(found.cut.options || {}) };
+
+    if (titleMode !== undefined) {
+      if (!isValidTitleMode(titleMode)) {
+        return res.status(400).json({ ok: false, error: 'titleMode inválido (overlay | filename | hidden).' });
+      }
+      next.titleMode = titleMode;
+    }
+    if (showArroba !== undefined) next.showArroba = showArroba !== false;
+
+    found.cut.options = next;
+    await saveManifest(req.params.name, manifest);
+
+    res.json({ ok: true, cut: found.cut });
   } catch (err) {
     console.error('[ERROR]', err.message);
     res.status(400).json({ ok: false, error: err.message });
