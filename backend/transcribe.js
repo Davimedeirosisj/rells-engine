@@ -1,6 +1,11 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { config } from './config.js';
+
+const execFileAsync = promisify(execFile);
 
 export const whisperConfig = {
   model: process.env.WHISPER_MODEL || 'turbo',
@@ -44,6 +49,22 @@ export function expectedSrtPath(videoPath, outputDir) {
   return path.join(outputDir, whisperOutputName(videoPath));
 }
 
+async function prepareWhisperAudio(videoPath, outputDir) {
+  const audioPath = path.join(outputDir, `${path.basename(videoPath, path.extname(videoPath))}.wav`);
+  const ffmpegBin = config.ffmpegPath || 'ffmpeg';
+  try {
+    await execFileAsync(ffmpegBin, [
+      '-y', '-v', 'error', '-err_detect', 'ignore_err', '-fflags', '+discardcorrupt',
+      '-i', videoPath, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', audioPath,
+    ], { timeout: 2 * 60 * 60 * 1000, maxBuffer: 1024 * 1024 });
+  } catch (err) {
+    if (!fs.existsSync(audioPath) || fs.statSync(audioPath).size === 0) {
+      throw new Error(`Não foi possível extrair o áudio para o Whisper: ${err.message}`);
+    }
+  }
+  return audioPath;
+}
+
 export function srtBlockCount(srtPath) {
   if (!fs.existsSync(srtPath)) return 0;
   const text = fs.readFileSync(srtPath, 'utf8');
@@ -54,12 +75,23 @@ export function srtBlockCount(srtPath) {
   return count;
 }
 
-export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = whisperConfig.timeoutMs, spawnFn = spawn, onStderr } = {}) {
+export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = whisperConfig.timeoutMs, spawnFn = spawn, onStderr, signal } = {}) {
   return new Promise((resolve, reject) => {
     let child;
     let stdout = '';
     let stderr = '';
     let settled = false;
+    const abort = () => {
+      if (settled) return;
+      settled = true;
+      if (child && typeof child.kill === 'function') child.kill();
+      const err = new Error('Transcrição cancelada.');
+      err.code = 'ABORT_ERR';
+      err.stdout = stdout;
+      err.stderr = stderr;
+      clearTimeout(timer);
+      reject(err);
+    };
 
     const timer = setTimeout(() => {
       settled = true;
@@ -72,9 +104,14 @@ export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = w
     }, timeoutMs);
 
     try {
+      const ffmpegDir = config.ffmpegPath ? path.dirname(config.ffmpegPath) : '';
+      const env = ffmpegDir
+        ? { ...process.env, PATH: `${ffmpegDir}${path.delimiter}${process.env.PATH || ''}` }
+        : undefined;
       child = spawnFn(program, [...moduleArgs, ...args], {
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
+        ...(env ? { env } : {}),
       });
     } catch (err) {
       clearTimeout(timer);
@@ -86,6 +123,12 @@ export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = w
       return;
     }
 
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+    signal?.addEventListener('abort', abort, { once: true });
+
     if (child.stdout) child.stdout.on('data', (d) => { stdout += d.toString(); });
     if (child.stderr) child.stderr.on('data', (d) => {
       const text = d.toString();
@@ -95,6 +138,7 @@ export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = w
 
     child.on('error', (err) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
       if (settled) return;
       settled = true;
       err.code = err.code || 'WHISPER_SPAWN';
@@ -103,11 +147,12 @@ export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = w
       reject(err);
     });
 
-    child.on('close', (exitCode, signal) => {
+    child.on('close', (exitCode, closeSignal) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
       if (settled) return;
       settled = true;
-      resolve({ exitCode, signal, stdout, stderr });
+      resolve({ exitCode, signal: closeSignal, stdout, stderr });
     });
   });
 }
@@ -149,7 +194,7 @@ export async function findNewestSrt(dir) {
   return srts[0].path;
 }
 
-export async function transcribeVideo({ videoPath, outputDir, cfg = whisperConfig, spawnFn = spawn, onProgress } = {}) {
+export async function transcribeVideo({ videoPath, outputDir, cfg = whisperConfig, spawnFn = spawn, onProgress, signal } = {}) {
   if (!videoPath || !outputDir) throw new Error('videoPath e outputDir são obrigatórios para transcrição.');
   if (!fs.existsSync(videoPath)) throw new Error(`Vídeo não encontrado em: ${videoPath}`);
   if (!fs.existsSync(outputDir)) await fs.promises.mkdir(outputDir, { recursive: true });
@@ -161,7 +206,10 @@ export async function transcribeVideo({ videoPath, outputDir, cfg = whisperConfi
     throw err;
   }
 
-  const args = buildWhisperArgs(videoPath, outputDir, cfg);
+  const whisperInputPath = spawnFn === spawn
+    ? await prepareWhisperAudio(videoPath, outputDir)
+    : videoPath;
+  const args = buildWhisperArgs(whisperInputPath, outputDir, cfg);
   let lastPercent = 0;
   const startedAt = Date.now();
   const reportStderr = (text) => {
@@ -185,6 +233,7 @@ export async function transcribeVideo({ videoPath, outputDir, cfg = whisperConfi
       timeoutMs: cfg.timeoutMs,
       spawnFn,
       onStderr: reportStderr,
+      signal,
     });
   } catch (err) {
     err.code = err.code || 'WHISPER_EXEC_FAILED';

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { checkFfmpeg, checkFfprobe, checkFont } from './system.js';
+import { checkYtdlp } from './download.js';
 import importRouter from './routes/import.js';
 import projectsRouter from './routes/projects.js';
 import transcriptionRouter from './routes/transcription.js';
@@ -13,6 +14,7 @@ import batchRouter from './routes/batch.js';
 import exportRouter from './routes/export.js';
 import mediaRouter from './routes/media.js';
 import settingsRouter from './routes/settings.js';
+import { recoverInterruptedJobs } from './progress.js';
 
 export function createApp() {
   const app = express();
@@ -30,9 +32,9 @@ export function createApp() {
   app.use(express.static(path.join(config.dirs.app)));
 
   app.get('/api/health', async (_req, res) => {
-    const [ffmpeg, ffprobe] = await Promise.all([checkFfmpeg(), checkFfprobe()]);
+    const [ffmpeg, ffprobe, ytdlp] = await Promise.all([checkFfmpeg(), checkFfprobe(), checkYtdlp()]);
     const font = checkFont();
-    res.json({ status: 'ok', app: 'rells-engine', version: '0.1.0', host: config.host, ffmpeg, ffprobe, font });
+    res.json({ status: 'ok', app: 'rells-engine', version: '0.1.0', host: config.host, ffmpeg, ffprobe, ytdlp, font });
   });
 
   app.use('/api', importRouter);
@@ -55,7 +57,12 @@ export function createApp() {
 }
 
 export function startServer() {
+  const localHosts = new Set(['127.0.0.1', 'localhost', '::1']);
+  if (!localHosts.has(config.host.toLowerCase()) && !config.allowRemote) {
+    throw new Error('Servidor remoto bloqueado por padrão. Use HOST=127.0.0.1 ou ALLOW_REMOTE=1 conscientemente.');
+  }
   const app = createApp();
+  void recoverInterruptedJobs().catch((err) => console.error('[ERROR] Recuperação de jobs:', err.message));
   app.listen(config.port, config.host, () => {
     console.log(`[INFO] Servidor iniciado em http://${config.host}:${config.port}`);
   });

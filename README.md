@@ -26,6 +26,8 @@ npm start              # http://localhost:3000
 
 O caminho do FFmpeg pode ser configurado em `.env` via `FFMPEG_PATH` / `FFPROBE_PATH`.
 
+Por segurança, o servidor aceita apenas hosts locais por padrão. Para expor a aplicação na rede, configure `HOST` e defina `ALLOW_REMOTE=1` conscientemente; esta aplicação não possui autenticação.
+
 ## Estrutura
 
 ```
@@ -34,7 +36,7 @@ backend/    servidor Express + API
 backend/routes/  endpoints (import, projects, cuts, preview, batch, export)
 backend/worker/  processamento (cut, preview, batch)
 fonts/      Gobold-Bold.ttf
-assets/     avatar.png, verification.png
+	assets/     imagens opcionais do perfil (avatar.png, verification.png)
 projects/   arquivos por projeto
 temp/       temporários
 tests/      testes automatizados

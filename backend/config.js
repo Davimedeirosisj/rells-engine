@@ -17,6 +17,7 @@ function findArrobaPng() {
 
 export const config = {
   host: process.env.HOST || '127.0.0.1',
+  allowRemote: process.env.ALLOW_REMOTE === '1' || process.env.ALLOW_REMOTE === 'true',
   port: Number(process.env.PORT) || 3000,
   rootDir,
   dirs: {
@@ -28,6 +29,8 @@ export const config = {
   globalSettingsPath: path.join(rootDir, 'global-settings.json'),
   ffmpegPath: process.env.FFMPEG_PATH || '',
   ffprobePath: process.env.FFPROBE_PATH || '',
+  ytdlpPath: process.env.YTDLP_PATH || '',
+  denoPath: process.env.DENO_PATH || '',
   fontPath: process.env.FONT_PATH || path.join(rootDir, 'fonts', 'Gobold-Bold.ttf'),
   avatarPath: process.env.AVATAR_PATH || path.join(rootDir, 'assets', 'avatar.png'),
   verificationPath: process.env.VERIFICATION_PATH || path.join(rootDir, 'assets', 'verification.png'),

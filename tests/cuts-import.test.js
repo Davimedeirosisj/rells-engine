@@ -57,6 +57,10 @@ async function makeProject({ srt = SRT_TEXT, durationMs = 30000 } = {}) {
       cuts: [],
       validationErrors: [],
       importedAt: new Date().toISOString(),
+      transcription: {
+        status: 'SRT_READY',
+        srtPath: path.join(dir, 'original.srt'),
+      },
     }),
   );
   return { name, dir };
@@ -206,11 +210,11 @@ test('speech_timestamps fora do corte geram erro e válidos são preservados', a
   }
 });
 
-test('projeto sem original.srt rejeita a importação', async () => {
+test('projeto sem transcrição SRT pronta rejeita a importação', async () => {
   const { name, dir } = await makeProject();
   try {
     await fs.rm(path.join(dir, 'original.srt'));
-    await assert.rejects(() => importOk(name, [baseCut()]), /não possui original\.srt/);
+    await assert.rejects(() => importOk(name, [baseCut()]), /não possui uma transcrição SRT pronta/);
   } finally {
     await rmProject(name);
   }

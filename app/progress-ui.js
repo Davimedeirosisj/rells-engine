@@ -110,6 +110,28 @@
     activeTimer = setInterval(tick, 1000);
   }
 
+  window.waitForBatchCompletion = async (projectName) => {
+    const endpoint = `/api/projects/${encodeURIComponent(projectName)}/progress`;
+    for (let tries = 0; tries < 7200; tries++) {
+      const response = await originalFetch(endpoint);
+      if (!response.ok) throw new Error(`Falha ao consultar progresso (${response.status}).`);
+      const data = await response.json();
+      const p = data.progress || {};
+      updatePanel({
+        title: 'PROCESSAMENTO DOS CORTES',
+        progress: p.progress,
+        elapsedSeconds: p.elapsedSeconds,
+        estimatedRemainingSeconds: p.estimatedRemainingSeconds,
+        speed: p.speed,
+        stage: p.totalCuts ? `CORTE ${p.currentCut || 0}/${p.totalCuts}` : 'FFMPEG',
+        message: p.message,
+      });
+      if (p.status === 'COMPLETED' || p.status === 'ERROR' || p.status === 'CANCELLED') return p;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    throw new Error('Tempo de acompanhamento do processamento excedido.');
+  };
+
   function xhrFetch(url, options) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -135,7 +157,6 @@
         });
       } else if (isBatch) {
         updatePanel({ title: 'PROCESSAMENTO DOS CORTES', progress: 0, elapsedSeconds: 0, stage: 'FFMPEG', message: 'Iniciando processamento…' });
-        if (projectName) pollProjectProgress(projectName, 'PROCESSING');
       }
 
       xhr.onload = () => {

@@ -19,7 +19,7 @@ export function parseProjectName(cortes) {
 }
 
 export async function createProject({ name, videoFile, srtFile, cortesFile }) {
-  if (!videoFile?.path || !videoFile?.originalname) throw new Error('Arquivo de video nao enviado.');
+  if (!videoFile?.path || !videoFile?.originalname) throw new Error('Arquivo de vídeo não enviado.');
 
   const safeName = sanitizeProjectName(name, { fallback: 'projeto' });
   const projectDir = safeJoin(config.dirs.projects, safeName);
@@ -76,6 +76,11 @@ export async function createProject({ name, videoFile, srtFile, cortesFile }) {
 
 export async function importCutsIntoProject(projectName, cortesRaw) {
   const { dir, manifest } = await getProject(projectName);
+
+  const videoPath = path.join(dir, manifest.sourceVideo || 'original.mp4');
+  if (!existsSync(videoPath)) {
+    throw new Error('Projeto não possui vídeo original. Reimporte o vídeo antes de importar cortes.');
+  }
 
   // Cut import is tied to the existing project and its transcription, not to
   // a project-local original.srt. Whisper stores the generated SRT outside

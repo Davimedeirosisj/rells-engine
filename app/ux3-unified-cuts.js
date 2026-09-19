@@ -104,14 +104,21 @@
           '<div class="fine">Processando com FFmpeg...</div>'
         );
 
-        const generated = await jsonApi(
+        await jsonApi(
           `/api/projects/${encodeURIComponent(projectName)}/generate-all`,
           { method: 'POST' }
         );
 
-        const results = generated.results || { completed: 0, total: 0, failed: 0 };
-        if (!generated.ok) {
-          throw new Error(generated.error || 'Falha ao processar os cortes.');
+        const progress = await window.waitForBatchCompletion(projectName);
+        const project = await jsonApi(`/api/projects/${encodeURIComponent(projectName)}`);
+        const cuts = project.project?.manifest?.cuts || [];
+        const results = {
+          total: cuts.length,
+          completed: cuts.filter((cut) => cut.status === 'CONCLUÍDO').length,
+          failed: cuts.filter((cut) => cut.status === 'ERRO').length,
+        };
+        if (progress.status === 'ERROR' || progress.status === 'CANCELLED') {
+          throw new Error(progress.message || 'Falha ao processar os cortes.');
         }
         if (results.failed) {
           throw new Error(`${results.failed} corte(s) falharam durante o processamento.`);

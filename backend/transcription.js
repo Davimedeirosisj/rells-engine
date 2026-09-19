@@ -8,6 +8,19 @@ import { safeJoin } from './fs-utils.js';
 import { transcribeVideo, checkWhisperAvailability, whisperConfig, srtBlockCount } from './transcribe.js';
 import { setProgress, getProgress } from './progress.js';
 
+const activeTranscriptions = new Map();
+
+export function isTranscriptionRunning(name) {
+  return activeTranscriptions.has(name);
+}
+
+export function cancelTranscription(name) {
+  const controller = activeTranscriptions.get(name);
+  if (!controller) return false;
+  controller.abort();
+  return true;
+}
+
 async function readProjectState(name) {
   const dir = safeJoin(config.dirs.projects, name);
   const manifestPath = path.join(dir, 'manifest.json');
@@ -110,13 +123,14 @@ async function createTranscriptionTempDir() {
   return fs.mkdtemp(path.join(root, `srt-${crypto.randomUUID()}-`));
 }
 
-async function runJob(name, videoPath, outputDir) {
+async function runJob(name, videoPath, outputDir, signal) {
   const started = Date.now();
   let ref;
   try {
     ref = await readProjectState(name);
   } catch (err) {
     console.error(`[ERROR] Transcrição — projeto não encontrado: ${err.message}`);
+    await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
     return;
   }
 
@@ -138,6 +152,7 @@ async function runJob(name, videoPath, outputDir) {
     const { srtPath } = await transcribeVideo({
       videoPath,
       outputDir,
+      signal,
       onProgress: ({ progress, elapsedSeconds, speed, estimatedRemainingSeconds }) => {
         setProgress(name, {
           status: 'TRANSCRIBING',
@@ -152,7 +167,9 @@ async function runJob(name, videoPath, outputDir) {
         });
       },
     });
-    await applyTranscriptionReady(ref, { srtPath });
+    const projectSrtPath = path.join(ref.dir, 'original.srt');
+    await fs.copyFile(srtPath, projectSrtPath);
+    await applyTranscriptionReady(ref, { srtPath: projectSrtPath });
     const elapsedSeconds = (Date.now() - started) / 1000;
     setProgress(name, {
       status: 'SRT_READY',
@@ -164,7 +181,7 @@ async function runJob(name, videoPath, outputDir) {
       totalDurationMs,
       message: 'Transcrição concluída. Escolha onde salvar o SRT.',
     });
-    console.log(`[INFO] Transcrição concluída (${Math.round(elapsedSeconds)}s). SRT temporário: ${srtPath}`);
+    console.log(`[INFO] Transcrição concluída (${Math.round(elapsedSeconds)}s). SRT salvo em: ${projectSrtPath}`);
   } catch (err) {
     console.error(`[ERROR] Transcrição falhou: ${err.message}`);
     if (err.stderr) console.error(`[WHISPER-STDERR]\n${String(err.stderr).slice(0, 2000)}`);
@@ -176,10 +193,16 @@ async function runJob(name, videoPath, outputDir) {
       message: err.message,
       elapsedSeconds: (Date.now() - started) / 1000,
     });
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 
 export async function startTranscription(name) {
+  if (activeTranscriptions.has(name)) {
+    return { status: 'TRANSCRIBING', alreadyRunning: true };
+  }
+
   const ref = await readProjectState(name);
   const videoPath = path.join(ref.dir, ref.manifest.sourceVideo);
   if (!existsSync(videoPath)) {
@@ -194,6 +217,8 @@ export async function startTranscription(name) {
   }
 
   const outputDir = await createTranscriptionTempDir();
+  const controller = new AbortController();
+  activeTranscriptions.set(name, controller);
   await markTranscribing(ref);
   setProgress(name, {
     status: 'TRANSCRIBING',
@@ -207,6 +232,8 @@ export async function startTranscription(name) {
     message: 'Iniciando transcrição…',
     startedAt: new Date().toISOString(),
   });
-  runJob(name, videoPath, outputDir).catch(() => {});
+  runJob(name, videoPath, outputDir, controller.signal)
+    .catch(() => {})
+    .finally(() => activeTranscriptions.delete(name));
   return { status: 'TRANSCRIBING', command: availability.program };
 }

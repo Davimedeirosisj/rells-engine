@@ -293,6 +293,26 @@ select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csv
   margin-top: 10px;
 }
 .task { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 13px; }
+
+/* ============ YOUTUBE DOWNLOAD LIST ============ */
+#youtube-downloads-list h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.download-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.download-item.running { border-left: 3px solid var(--amber); }
+.download-item.done { border-left: 3px solid var(--green); opacity: 0.7; }
+.download-item.error { border-left: 3px solid var(--red); background: rgba(229,83,75,0.1); }
+.download-item .task-check { width: 14px; height: 14px; flex-shrink: 0; }
+.download-item .message { color: var(--text-muted); }
 .task-check {
   width: 16px; height: 16px;
   border-radius: 50%;

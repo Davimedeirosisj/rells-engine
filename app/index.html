@@ -133,6 +133,41 @@
           </div>
         </div>
 
+        <!-- ETAPA 1.5 — BAIXAR DO YOUTUBE -->
+        <div class="card" id="stage-youtube">
+          <div class="card-head">
+            <span class="step-badge">1.5</span>
+            <div class="card-title">
+              <h2>Baixar do YouTube</h2>
+              <p>Cole o link do vídeo e baixe automaticamente usando yt-dlp.</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <label class="field">
+              <span class="field-label">LINK DO YOUTUBE</span>
+              <input id="youtube-url" class="input" type="text" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off" spellcheck="false" />
+            </label>
+            <label class="field">
+              <span class="field-label">NOME DO PROJETO</span>
+              <input id="youtube-project-name" class="input" type="text" placeholder="Ex: Culto YouTube 08 setembro 2026" autocomplete="off" spellcheck="false" />
+            </label>
+            <button id="download-youtube-btn" class="btn btn-primary btn-full" type="button">BAIXAR VÍDEO + GERAR SRT</button>
+
+            <!-- Status do download -->
+            <div id="youtube-status" class="task-panel hidden">
+              <div class="task" data-task="downloading"><span class="task-check"></span><span>Baixando vídeo...</span></div>
+              <div class="task" data-task="transcribing"><span class="task-check"></span><span>Gerando SRT com Whisper local</span></div>
+              <div class="task" data-task="ready"><span class="task-check"></span><span>Pronto para edição!</span></div>
+            </div>
+
+            <!-- Lista de downloads em andamento -->
+            <div id="youtube-downloads-list" class="hidden">
+              <h3>Downloads em andamento</h3>
+              <ul id="youtube-downloads-ul"></ul>
+            </div>
+          </div>
+        </div>
+
         <!-- ETAPA 2 — IMPORTAR CORTES -->
         <div class="card" id="stage2">
           <div class="card-head">
@@ -371,6 +406,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260919-youtube-fix"></script>
 </body>
 </html>

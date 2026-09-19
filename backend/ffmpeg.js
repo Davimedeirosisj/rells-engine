@@ -36,15 +36,22 @@ export function buildPreviewCommand(inputPath, startMs, endMs, { theme = '', han
   return args;
 }
 
-export function runFfmpeg(args, { onProgress, totalDurationMs } = {}) {
+export function runFfmpeg(args, { onProgress, totalDurationMs, signal } = {}) {
   const bin = getFfmpegBin();
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      const error = new Error('Processamento cancelado.');
+      error.code = 'ABORT_ERR';
+      reject(error);
+      return;
+    }
     const childArgs = [...args];
     if (typeof onProgress === 'function') {
       childArgs.splice(Math.max(0, childArgs.length - 1), 0, '-progress', 'pipe:1', '-nostats');
     }
 
     const child = spawn(bin, childArgs, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let settled = false;
     let stderr = '';
     let stdout = '';
     let lastOutTimeMs = 0;
@@ -79,6 +86,16 @@ export function runFfmpeg(args, { onProgress, totalDurationMs } = {}) {
       reject(new Error('Tempo de execução excedido (180s).'));
     }, 180 * 1000);
     const clearRenderTimeout = () => clearTimeout(timeout);
+    const abort = () => {
+      if (settled) return;
+      child.kill('SIGTERM');
+      const error = new Error('Processamento cancelado.');
+      error.code = 'ABORT_ERR';
+      settled = true;
+      clearRenderTimeout();
+      reject(error);
+    };
+    signal?.addEventListener('abort', abort, { once: true });
 
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
@@ -86,10 +103,16 @@ export function runFfmpeg(args, { onProgress, totalDurationMs } = {}) {
     });
     child.on('error', (err) => {
       clearRenderTimeout();
+      signal?.removeEventListener('abort', abort);
+      if (settled) return;
+      settled = true;
       reject(new Error(`Falha ao executar FFmpeg: ${err.message}`));
     });
     child.on('close', (code) => {
       clearRenderTimeout();
+      signal?.removeEventListener('abort', abort);
+      if (settled) return;
+      settled = true;
       if (code === 0) {
         if (typeof onProgress === 'function') onProgress({ progress: 100, elapsedSeconds: (Date.now() - startedAt) / 1000, estimatedRemainingSeconds: 0, speed: null, currentTimeMs: totalDurationMs, totalDurationMs });
         resolve({ code, stderr, stdout });
@@ -101,8 +124,8 @@ export function runFfmpeg(args, { onProgress, totalDurationMs } = {}) {
 }
 
 export function executeCut(inputPath, startMs, endMs, outputPath, options = {}) {
-  const { onProgress, totalDurationMs, ...ffmpegOptions } = options;
-  return runFfmpeg([...buildCutCommand(inputPath, startMs, endMs, ffmpegOptions), outputPath], { onProgress, totalDurationMs });
+  const { onProgress, totalDurationMs, signal, ...ffmpegOptions } = options;
+  return runFfmpeg([...buildCutCommand(inputPath, startMs, endMs, ffmpegOptions), outputPath], { onProgress, totalDurationMs, signal });
 }
 
 export function executePreview(inputPath, startMs, endMs, outputPath, options = {}) {

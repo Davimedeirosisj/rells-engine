@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getTranscriptionStatus, startTranscription } from '../transcription.js';
+import { cancelTranscription, getTranscriptionStatus, startTranscription } from '../transcription.js';
 import { getProgress } from '../progress.js';
 
 const router = Router();
@@ -31,6 +31,13 @@ router.post('/projects/:name/transcription', async (req, res) => {
     console.error('[ERROR] Início da transcrição:', err.message);
     res.status(400).json({ ok: false, project: req.params.name, error: err.message });
   }
+});
+
+router.delete('/projects/:name/transcription', (req, res) => {
+  if (!cancelTranscription(req.params.name)) {
+    return res.status(404).json({ ok: false, project: req.params.name, error: 'Nenhuma transcrição ativa para este projeto.' });
+  }
+  return res.status(202).json({ ok: true, project: req.params.name, status: 'CANCELLING' });
 });
 
 export default router;

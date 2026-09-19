@@ -2,7 +2,28 @@ import { getProject, saveManifest } from '../projects.js';
 import { processCut } from './cut.js';
 import { setProgress } from '../progress.js';
 
+const activeBatches = new Map();
+
+export function isBatchRunning(projectName) {
+  return activeBatches.has(projectName);
+}
+
+export function cancelBatch(projectName) {
+  const controller = activeBatches.get(projectName);
+  if (!controller) return false;
+  controller.abort();
+  return true;
+}
+
 export async function generateAllCuts(projectName, processor = processCut) {
+  if (activeBatches.has(projectName)) {
+    throw new Error(`Já existe um processamento em andamento para o projeto "${projectName}".`);
+  }
+
+  const controller = new AbortController();
+  activeBatches.set(projectName, controller);
+
+  try {
   const { dir, manifest } = await getProject(projectName);
 
   const cuts = manifest.cuts || [];
@@ -26,6 +47,7 @@ export async function generateAllCuts(projectName, processor = processCut) {
       continue;
     }
 
+    if (controller.signal.aborted) break;
     if (cut.status === 'PROCESSANDO') continue;
 
     cut.status = 'PROCESSANDO';
@@ -47,6 +69,7 @@ export async function generateAllCuts(projectName, processor = processCut) {
             message: `Renderizando corte ${i + 1} de ${cuts.length}…`,
           });
         },
+          signal: controller.signal,
       });
       await saveManifest(projectName, manifest);
       if (cut.status === 'CONCLUÍDO') {
@@ -72,12 +95,17 @@ export async function generateAllCuts(projectName, processor = processCut) {
   }
 
   const elapsedSeconds = (Date.now() - batchStartedAt) / 1000;
-  const finalStatus = results.failed ? 'ERROR' : 'COMPLETED';
+  const finalStatus = controller.signal.aborted ? 'CANCELLED' : (results.failed ? 'ERROR' : 'COMPLETED');
   setProgress(projectName, {
     status: finalStatus, stage: 'READY', progress: 100, currentCut: cuts.length, totalCuts: cuts.length,
     currentTitle: null, elapsedSeconds, estimatedRemainingSeconds: 0,
-    message: results.failed ? `${results.failed} corte(s) falharam.` : `${results.completed + results.skipped} cortes concluídos.`,
+    message: controller.signal.aborted
+      ? 'Processamento cancelado.'
+      : (results.failed ? `${results.failed} corte(s) falharam.` : `${results.completed + results.skipped} cortes concluídos.`),
   });
 
-  return { manifest, results };
+    return { manifest, results };
+  } finally {
+    activeBatches.delete(projectName);
+  }
 }

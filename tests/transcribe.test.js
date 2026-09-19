@@ -202,11 +202,11 @@ test('deriveTranscriptionStatus + applyTranscriptionReady: SRT_READY', async () 
   // Marcar como pronto
   const srtPath = path.join(ref.dir, 'original.srt');
   await fs.writeFile(srtPath, '1\n00:00:00,000 --> 00:00:10,000\nOlá mundo\n\n');
-  await applyTranscriptionReady(ref);
+  await applyTranscriptionReady(ref, { srtPath });
 
   const after = deriveTranscriptionStatus(ref);
   assert.equal(after.status, 'SRT_READY');
-  assert.equal(after.sourceSrt, 'original.srt');
+  assert.equal(after.sourceSrt, null);
   assert.equal(after.srtExists, true);
   assert.equal(srtBlockCount(path.join(ref.dir, 'original.srt')), 1);
 });

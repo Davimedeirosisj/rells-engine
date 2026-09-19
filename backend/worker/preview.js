@@ -4,8 +4,15 @@ import { executePreview } from '../ffmpeg.js';
 import { config } from '../config.js';
 import { resolveRenderOptions } from '../render-options.js';
 
+const activePreviews = new Set();
+
 export async function generatePreview(projectName, cutId) {
-  const { dir, manifest } = await getProject(projectName);
+  const key = `${projectName}:${cutId}`;
+  if (activePreviews.has(key)) throw new Error(`Preview do corte ${cutId} já está em processamento.`);
+  activePreviews.add(key);
+
+  try {
+    const { dir, manifest } = await getProject(projectName);
 
   const found = findCut(manifest, cutId);
   if (!found) {
@@ -31,9 +38,12 @@ export async function generatePreview(projectName, cutId) {
   });
   console.log(`[INFO] Preview do corte ${cutId} concluído`);
 
-  return {
-    cutId,
-    previewFilename,
-    url: `/media/${encodeURIComponent(projectName)}/temp/${previewFilename}`,
-  };
+    return {
+      cutId,
+      previewFilename,
+      url: `/media/${encodeURIComponent(projectName)}/temp/${previewFilename}`,
+    };
+  } finally {
+    activePreviews.delete(key);
+  }
 }

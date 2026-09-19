@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createApp } from '../backend/server.js';
 import { config } from '../backend/config.js';
 import { spawnSync } from 'node:child_process';
-import { checkFfmpeg, checkFfprobe } from '../backend/system.js';
+import { checkFfmpeg, checkFfprobe, getFfmpegBin } from '../backend/system.js';
 
 const projectsDir = config.dirs.projects;
 const TEST_VIDEO = path.join(config.dirs.temp ?? 'temp', 'api-test-video.mp4');
@@ -26,7 +26,7 @@ before(async () => {
   ffmpegOk = ff.available;
   ffprobeOk = fp.available;
   if (ffmpegOk && ffprobeOk) {
-    const res = spawnSync('ffmpeg', [
+    const res = spawnSync(getFfmpegBin(), [
       '-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=25:duration=2',
       '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2',
       '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', TEST_VIDEO,
@@ -89,8 +89,13 @@ test('POST /api/import cria projeto e inicia transcrição', async (t) => {
   assert.equal(status, 200);
   assert.equal(data.ok, true);
   assert.equal(data.project.name, projectName);
-  assert.equal(data.transcription.status, 'ERROR');
-  const statusRes = await api('GET', `/api/projects/${encodeURIComponent(projectName)}/transcription`);
+  assert.equal(data.transcription.status, 'TRANSCRIBING');
+  let statusRes;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    statusRes = await api('GET', `/api/projects/${encodeURIComponent(projectName)}/transcription`);
+    if (statusRes.data.transcription.status === 'ERROR') break;
+  }
   assert.equal(statusRes.status, 200);
   assert.equal(statusRes.data.transcription.status, 'ERROR');
 });
@@ -129,6 +134,33 @@ test('GET /api/projects retorna lista vazia ou array', async () => {
   const { status, data } = await api('GET', '/api/projects');
   assert.equal(status, 200);
   assert.ok(Array.isArray(data.projects));
+});
+
+test('POST /api/projects/:name/generate-all responde 202 para job assíncrono', async (t) => {
+  if (!ffmpegOk) { t.skip('FFmpeg indisponível'); return; }
+
+  const name = '__api_batch_' + Date.now();
+  const dir = path.join(projectsDir, name);
+  await fs.mkdir(path.join(dir, 'output'), { recursive: true });
+  await fs.mkdir(path.join(dir, 'temp'), { recursive: true });
+  await fs.writeFile(path.join(dir, 'manifest.json'), JSON.stringify({
+    project: name,
+    sourceVideo: 'original.mp4',
+    importedAt: new Date().toISOString(),
+    cuts: [],
+    validationErrors: [],
+  }));
+
+  try {
+    const started = await api('POST', `/api/projects/${encodeURIComponent(name)}/generate-all`);
+    assert.equal(started.status, 202);
+    assert.equal(started.data.status, 'PROCESSING');
+
+    const cancel = await api('DELETE', `/api/projects/${encodeURIComponent(name)}/generate-all`);
+    assert.ok([202, 404].includes(cancel.status));
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('GET /media bloqueia path traversal (400 pelo safeJoin)', async () => {

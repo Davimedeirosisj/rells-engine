@@ -5,6 +5,8 @@ import { config } from '../config.js';
 import { validateRenderedMp4 } from '../validate.js';
 import { resolveRenderOptions } from '../render-options.js';
 
+const activeCuts = new Set();
+
 export async function processCut(dir, manifest, cut, index, progress = {}) {
   const originalVideoPath = path.join(dir, manifest.sourceVideo);
   const render = resolveRenderOptions(cut, { projectSettings: manifest.settings, projectDir: dir });
@@ -26,6 +28,7 @@ export async function processCut(dir, manifest, cut, index, progress = {}) {
       verificationPath: config.verificationPath,
       totalDurationMs: Math.max(1, cut.endMs - cut.startMs),
       onProgress: progress.onProgress,
+      signal: progress.signal,
     });
     const validation = await validateRenderedMp4(outputPath, {
       startMs: cut.startMs,
@@ -50,7 +53,12 @@ export async function processCut(dir, manifest, cut, index, progress = {}) {
 }
 
 export async function generateCut(projectName, cutId) {
-  const { dir, manifest } = await getProject(projectName);
+  const key = `${projectName}:${cutId}`;
+  if (activeCuts.has(key)) throw new Error(`Corte ${cutId} já está em processamento.`);
+  activeCuts.add(key);
+
+  try {
+    const { dir, manifest } = await getProject(projectName);
 
   const found = findCut(manifest, cutId);
   if (!found) {
@@ -71,6 +79,9 @@ export async function generateCut(projectName, cutId) {
     console.error(`[ERROR] Corte ${String(index + 1).padStart(2, '0')} falhou: ${cut.error}`);
   }
 
-  await saveManifest(projectName, manifest);
-  return { cut, manifest };
+    await saveManifest(projectName, manifest);
+    return { cut, manifest };
+  } finally {
+    activeCuts.delete(key);
+  }
 }

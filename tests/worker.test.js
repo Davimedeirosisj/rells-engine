@@ -44,15 +44,20 @@ test('generateCut lança erro para corte em processamento', async () => {
   await rmProject(name);
 });
 
-test('generateCut lança erro claro se a fonte não existe', async () => {
+test('generateCut marca ERRO no corte se a fonte não existe', async () => {
   const originalFont = config.fontPath;
+  const originalWindir = process.env.WINDIR;
   config.fontPath = path.join(projectsDir, '__inexistente__.ttf');
+  process.env.WINDIR = path.join(projectsDir, '__windir_inexistente__');
   const name = await tempProject([
     { id: 1, startMs: 0, endMs: 1000, start: 'x', end: 'y', title: 'T', theme: 'Tema', status: 'PENDENTE' },
   ]);
   try {
-    await assert.rejects(() => generateCut(name, 1), /Fonte não encontrada/);
+    const result = await generateCut(name, 1);
+    assert.equal(result.cut.status, 'ERRO');
+    assert.match(result.cut.error, /Nenhuma fonte/);
   } finally {
+    process.env.WINDIR = originalWindir;
     config.fontPath = originalFont;
     await rmProject(name);
   }
@@ -88,13 +93,16 @@ test('generatePreview lança erro para corte inexistente', async () => {
 
 test('generatePreview lança erro claro se a fonte não existe', async () => {
   const originalFont = config.fontPath;
+  const originalWindir = process.env.WINDIR;
   config.fontPath = path.join(projectsDir, '__inexistente__.ttf');
+  process.env.WINDIR = path.join(projectsDir, '__windir_inexistente__');
   const name = await tempProject([
     { id: 1, startMs: 0, endMs: 1000, start: 'x', end: 'y', title: 'T', theme: 'Tema', status: 'PENDENTE' },
   ]);
   try {
-    await assert.rejects(() => generatePreview(name, 1), /Fonte não encontrada/);
+    await assert.rejects(() => generatePreview(name, 1), /Nenhuma fonte/);
   } finally {
+    process.env.WINDIR = originalWindir;
     config.fontPath = originalFont;
     await rmProject(name);
   }

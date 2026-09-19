@@ -43,6 +43,24 @@
     return data;
   }
 
+  async function waitForBatchCompletion(projectName) {
+    if (typeof window.waitForBatchCompletion !== 'function') {
+      throw new Error('Acompanhamento do processamento indisponível. Recarregue a página.');
+    }
+    const progress = await window.waitForBatchCompletion(projectName);
+    if (progress.status === 'CANCELLED') throw new Error('Processamento cancelado.');
+    const data = await api(`/api/projects/${encodeURIComponent(projectName)}`);
+    const manifest = data.project?.manifest || {};
+    const cuts = manifest.cuts || [];
+    const completed = cuts.filter((cut) => cut.status === 'CONCLUÍDO').length;
+    const failed = cuts.filter((cut) => cut.status === 'ERRO').length;
+    return {
+      progress,
+      manifest,
+      results: { total: cuts.length, completed, failed, skipped: 0 },
+    };
+  }
+
   function showMessage(msg, type = 'success') {
     const el = $('#stage-message');
     if (!el) return;
@@ -281,6 +299,114 @@
     }
   });
 
+  // ---- DOWNLOAD DO YOUTUBE ----
+  const youtubeUrlInput = $('#youtube-url');
+  const youtubeProjectNameInput = $('#youtube-project-name');
+  const downloadYoutubeBtn = $('#download-youtube-btn');
+  const youtubeStatusPanel = $('#youtube-status');
+  const youtubeDownloadsList = $('#youtube-downloads-list');
+
+  function updateYoutubeDownload(id, status, message) {
+    const li = document.getElementById(`yt-download-${id}`);
+    if (li) {
+      li.className = 'download-item ' + (status === 'completed' ? 'done' : 'running');
+      li.querySelector('.task-check').classList.toggle('hidden', status !== 'completed');
+      li.querySelector('.message').textContent = message;
+    }
+  }
+
+  function waitForYoutubeImport(name, id) {
+    return new Promise((resolve, reject) => {
+      let tries = 0;
+      const poll = async () => {
+        tries += 1;
+        try {
+          const status = await api(`/api/import/youtube/${encodeURIComponent(name)}/status`);
+          const progress = status.progress || {};
+          const transcription = status.transcription || null;
+
+          if (progress.status === 'ERROR') {
+            throw new Error(progress.message || 'Falha no download do YouTube.');
+          }
+          if (transcription?.status === 'ERROR') {
+            throw new Error(transcription.error || 'Falha na transcrição do vídeo.');
+          }
+          if (transcription?.status === 'SRT_READY') {
+            resolve(transcription);
+            return;
+          }
+
+          if (progress.status === 'DOWNLOADING') {
+            const percent = Number(progress.progress) || 0;
+            updateYoutubeDownload(id, 'running', `Baixando vídeo… ${percent.toFixed(1)}%`);
+          } else if (transcription?.status === 'TRANSCRIBING') {
+            const percent = Number(transcription.progress?.progress) || 0;
+            updateYoutubeDownload(id, 'running', `Gerando SRT… ${percent.toFixed(1)}%`);
+          }
+
+          if (tries >= 1200) throw new Error('Tempo limite do download/transcrição excedido.');
+          setTimeout(poll, 3000);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      poll();
+    });
+  }
+
+  downloadYoutubeBtn.addEventListener('click', async () => {
+    const url = youtubeUrlInput.value.trim();
+    const name = youtubeProjectNameInput.value.trim();
+
+    if (!url) return showMessage('Informe o link do YouTube.', 'error');
+    if (!name) return showMessage('Informe o nome do projeto.', 'error');
+
+    // Validação básica de URL do YouTube
+    const ytRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
+    if (!ytRegex.test(url)) {
+      return showMessage('URL inválida. Use um link do YouTube.', 'error');
+    }
+
+    hideMessage();
+    youtubeDownloadsList.classList.remove('hidden');
+    downloadYoutubeBtn.disabled = true;
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    const li = document.createElement('li');
+    li.id = `yt-download-${id}`;
+    li.className = 'download-item running';
+    li.innerHTML = `
+      <div class="task" data-task="${id}"><span class="task-check"></span><span>Baixando...</span></div>
+      <div class="message">Iniciando download do YouTube</div>
+    `;
+    $('#youtube-downloads-ul').appendChild(li);
+
+    try {
+      const data = await api('/api/import/youtube', {
+        method: 'POST',
+        body: JSON.stringify({ url, name }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      await waitForYoutubeImport(data.projectName || name, id);
+
+      updateYoutubeDownload(id, 'completed', '✅ Vídeo baixado e SRT gerado!');
+      youtubeStatusPanel.classList.add('hidden');
+      showMessage(`Projeto "${name}" criado com sucesso!`, 'success');
+
+      // Limpar inputs após download bem-sucedido
+      setTimeout(() => {
+        youtubeUrlInput.value = '';
+        youtubeProjectNameInput.value = '';
+        $('#download-youtube-btn').disabled = false;
+      }, 2000);
+
+    } catch (e) {
+      updateYoutubeDownload(id, 'error', `❌ Erro: ${e.message}`);
+      showMessage('Erro ao baixar do YouTube: ' + e.message, 'error');
+      $('#download-youtube-btn').disabled = false;
+    }
+  });
+
   function finishSrtReady(projName, mb, srtBlocks) {
     setTask('whisper', 'done');
     setTask('ready', 'done');
@@ -498,8 +624,9 @@
     }
 
     try {
-      const r = await api(`/api/projects/${encodeURIComponent(pname)}/generate-all`, { method: 'POST' });
-      if (!r.ok) throw new Error(r.error || 'Falha ao processar.');
+      await api(`/api/projects/${encodeURIComponent(pname)}/generate-all`, { method: 'POST' });
+      const r = await waitForBatchCompletion(pname);
+      if (r.results.failed) throw new Error(`${r.results.failed} corte(s) falharam durante o processamento.`);
       state.stage2 = 'COMPLETED';
       setWorkflowStep(4);
       if (cutsResult) {
@@ -713,7 +840,11 @@
     const p = state.current;
     if (!p) return;
     try {
-      const r = await api(`/api/projects/${encodeURIComponent(p.name)}/generate-all`, { method: 'POST' });
+      await api(`/api/projects/${encodeURIComponent(p.name)}/generate-all`, { method: 'POST' });
+      const r = await waitForBatchCompletion(p.name);
+      if (r.results.failed) {
+        throw new Error(`${r.results.failed} corte(s) falharam durante o processamento.`);
+      }
       showMessage(`Gerados: ${r.results.completed} de ${r.results.total} cortes.`, 'success');
       await openProject(p.name);
     } catch (e) {

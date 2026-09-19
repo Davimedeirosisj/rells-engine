@@ -49,7 +49,13 @@ export async function getProject(name) {
 export async function saveManifest(name, manifest) {
   const projectDir = safeJoin(config.dirs.projects, name);
   const manifestPath = path.join(projectDir, 'manifest.json');
-  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+  const tempPath = `${manifestPath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await fs.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf8');
+    await fs.rename(tempPath, manifestPath);
+  } finally {
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+  }
   return manifest;
 }
 
