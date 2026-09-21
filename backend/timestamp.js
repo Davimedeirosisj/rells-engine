@@ -1,4 +1,5 @@
 const HH_MM_SS_MS = /^(\d{1,2}):(\d{1,2}):(\d{1,2})[,.](\d{1,3})$/;
+const HH_MM_SS_CENTI = /^(\d{1,2}):(\d{1,2}):(\d{1,2}):(\d{1,2})$/;
 const SECONDS_DECIMAL = /^(\d+(?:\.\d{1,3})?)$/;
 
 export function timestampToMs(input) {
@@ -21,6 +22,20 @@ export function timestampToMs(input) {
     }
 
     return ((h * 3600 + m * 60 + s) * 1000) + ms;
+  }
+
+  const hmstc = str.match(HH_MM_SS_CENTI);
+  if (hmstc) {
+    const h = parseInt(hmstc[1], 10);
+    const m = parseInt(hmstc[2], 10);
+    const s = parseInt(hmstc[3], 10);
+    const c = parseInt(hmstc[4], 10);
+
+    if (m >= 60 || s >= 60 || c > 99) {
+      throw new Error(`Timestamp inválido: "${input}"`);
+    }
+
+    return ((h * 3600 + m * 60 + s) * 1000) + c * 10;
   }
 
   const sec = str.match(SECONDS_DECIMAL);

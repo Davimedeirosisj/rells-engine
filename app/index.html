@@ -57,6 +57,9 @@
     <main class="main">
       <header class="topbar">
         <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Abrir menu">☰</button>
+        <button class="icon-btn collapse-btn" id="collapse-btn" type="button" title="Recolher sidebar" aria-label="Recolher sidebar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
         <div class="topbar-heading">
           <h1>Bem-vindo ao Rells Engine</h1>
           <p class="topbar-subtitle">Crie seu projeto, gere o SRT com Whisper e produza cortes impactantes.</p>
@@ -75,6 +78,30 @@
 
       <!-- ===== DASHBOARD ===== -->
       <section class="view active" id="view-dashboard">
+        <!-- KPI CARDS -->
+        <div class="kpi-grid" id="kpi-grid" aria-label="Resumo geral">
+          <div class="kpi-card">
+            <span class="kpi-label">Projetos</span>
+            <strong class="kpi-value" id="kpi-projects">—</strong>
+            <span class="kpi-delta" id="kpi-projects-sub"></span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Cortes prontos</span>
+            <strong class="kpi-value kpi-green" id="kpi-completed">—</strong>
+            <span class="kpi-delta" id="kpi-completed-sub"></span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Pendentes</span>
+            <strong class="kpi-value kpi-amber" id="kpi-pending">—</strong>
+            <span class="kpi-delta" id="kpi-pending-sub"></span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Com erro</span>
+            <strong class="kpi-value kpi-red" id="kpi-errors">—</strong>
+            <span class="kpi-delta" id="kpi-errors-sub"></span>
+          </div>
+        </div>
+
         <!-- Workflow -->
         <div class="workflow" id="workflow" role="list" aria-label="Etapas do fluxo">
           <div class="workflow-step active" data-step="1">
@@ -129,6 +156,11 @@
               <div class="task" data-task="meta"><span class="task-check"></span><span>Enviando vídeo para o servidor</span></div>
               <div class="task" data-task="whisper"><span class="task-check"></span><span>Gerando SRT com Whisper local</span></div>
               <div class="task" data-task="ready"><span class="task-check"></span><span>Pronto para edição</span></div>
+            </div>
+
+            <div class="btn-row hidden" id="transcription-actions">
+              <button id="cancel-transcription-btn" class="btn btn-ghost" type="button">CANCELAR TRANSCRIÇÃO</button>
+              <button id="retry-transcription-btn" class="btn btn-secondary hidden" type="button">REFEZER TRANSCRIÇÃO</button>
             </div>
           </div>
         </div>
@@ -196,10 +228,11 @@
               <button id="validate-btn" class="btn btn-secondary" type="button">VALIDAR CORTES</button>
               <button id="process-btn" class="btn btn-primary" type="button" disabled>PROCESSAR CORTES COM FFMPEG</button>
             </div>
-            <p class="external-note">
-              Os cortes devem ser gerados externamente usando o SRT e o manual TOP 10 CORTES.
-            </p>
-            <div id="cuts-result" class="cuts-result" hidden></div>
+<p class="external-note">
+                Os cortes devem ser gerados externamente usando o SRT e o manual TOP 10 CORTES.
+              </p>
+              <div id="cuts-result" class="cuts-result" hidden></div>
+              <button id="cancel-batch-btn" class="btn btn-ghost btn-full hidden" type="button">CANCELAR PROCESSAMENTO</button>
           </div>
         </div>
 
@@ -250,10 +283,20 @@
               <p>Gerencie seus projetos, valide cortes e produza os vídeos.</p>
             </div>
           </div>
+          <div class="table-toolbar">
+            <label class="field table-search">
+              <span class="field-label">BUSCAR</span>
+              <input id="project-search" class="input" type="search" placeholder="Filtrar por nome..." autocomplete="off" spellcheck="false" />
+            </label>
+            <div class="table-toolbar-right">
+              <span class="table-count mono" id="projects-count"></span>
+              <button id="density-toggle" class="btn btn-ghost" type="button" title="Alternar densidade da tabela">COMPACTAR</button>
+            </div>
+          </div>
           <div class="table-wrap hidden" id="projects-table-wrap">
-            <table class="data-table">
+            <table class="data-table" id="projects-table">
               <thead>
-                <tr><th>Nome</th><th>Status</th><th>Vídeo</th><th>SRT</th><th>Cortes</th><th>Ações</th></tr>
+                <tr><th data-sort="title" role="button" tabindex="0">Nome</th><th data-sort="status" role="button" tabindex="0">Status</th><th>Vídeo</th><th>SRT</th><th data-sort="totalCuts" role="button" tabindex="0">Cortes</th><th>Ações</th></tr>
               </thead>
               <tbody id="projects-tbody"></tbody>
             </table>
@@ -269,6 +312,7 @@
               <p id="detail-sub"></p>
             </div>
             <div class="detail-actions">
+              <button class="btn btn-ghost" id="detail-cancel" type="button" hidden>CANCELAR</button>
               <button class="btn btn-secondary" id="detail-generate-all" type="button">GERAR TODOS OS CORTES</button>
               <button class="btn btn-primary" id="detail-export" type="button">EXPORTAR ZIP</button>
             </div>
@@ -405,6 +449,9 @@
       <video id="preview-video" controls playsinline autoplay muted></video>
     </div>
   </div>
+
+  <!-- ===== TOASTS ===== -->
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 
   <script src="app.js?v=20260919-youtube-fix"></script>
 </body>

@@ -12,6 +12,21 @@ test('timestampToMs converte HH:MM:SS.mmm (ponto)', () => {
   assert.equal(timestampToMs('00:00:01.500'), 1500);
 });
 
+test('timestampToMs converte HH:MM:SS:CC (centésimos)', () => {
+  assert.equal(timestampToMs('00:10:25:14'), (10 * 60 + 25) * 1000 + 140);
+  assert.equal(timestampToMs('00:11:33:57'), (11 * 60 + 33) * 1000 + 570);
+  assert.equal(timestampToMs('00:00:00:00'), 0);
+  assert.equal(timestampToMs('00:00:01:50'), 1500);
+  assert.equal(timestampToMs('00:00:01:99'), 1990);
+});
+
+test('timestampToMs rejeita centésimos inválidos (>= 100 e 3 dígitos)', () => {
+  assert.throws(() => timestampToMs('00:00:01:100'), /Timestamp inválido/);
+  assert.throws(() => timestampToMs('00:00:01:140'), /Timestamp inválido/);
+  assert.throws(() => timestampToMs('00:60:00:00'), /Timestamp inválido/);
+  assert.throws(() => timestampToMs('00:00:60:00'), /Timestamp inválido/);
+});
+
 test('timestampToMs converte segundos decimais', () => {
   assert.equal(timestampToMs('1.5'), 1500);
   assert.equal(timestampToMs('0.280'), 280);

@@ -25,6 +25,7 @@
     el.textContent = message;
     el.className = 'stage-message ' + type;
     el.hidden = false;
+    if (window.toast) window.toast(message, type === 'error' ? 'error' : 'success');
   }
 
   function setResult(html) {
@@ -108,8 +109,10 @@
           `/api/projects/${encodeURIComponent(projectName)}/generate-all`,
           { method: 'POST' }
         );
+        if (window.setBatchRunning) window.setBatchRunning(true);
 
         const progress = await window.waitForBatchCompletion(projectName);
+        if (window.setBatchRunning) window.setBatchRunning(false);
         const project = await jsonApi(`/api/projects/${encodeURIComponent(projectName)}`);
         const cuts = project.project?.manifest?.cuts || [];
         const results = {
@@ -158,6 +161,7 @@
         setMessage('Cortes processados e download do ZIP iniciado.', 'success');
 
       } catch (error) {
+        if (window.setBatchRunning) window.setBatchRunning(false);
         console.error('[UX3]', error);
         button.textContent = 'IMPORTAR CORTES E GERAR VÍDEOS';
         setMessage(error.message || 'Erro no fluxo de cortes.', 'error');

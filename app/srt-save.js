@@ -10,6 +10,7 @@
     } else {
       alert(message);
     }
+    if (window.toast) window.toast(message, type === 'error' ? 'error' : 'success');
   }
 
   function activeProjectName() {

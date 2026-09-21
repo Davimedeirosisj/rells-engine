@@ -16,9 +16,14 @@ export async function listProjects() {
     if (!existsSync(manifestPath)) continue;
     try {
       const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-      const validCuts = (manifest.cuts || []).length;
+      const cuts = manifest.cuts || [];
+      const validCuts = cuts.length;
       const invalidCuts = (manifest.validationErrors || []).length;
       const srtReady = manifest.transcription?.status === 'SRT_READY';
+      const completedCuts = cuts.filter((c) => String(c.status || '').toUpperCase() === 'CONCLUÍDO').length;
+      const errorCuts = cuts.filter((c) => String(c.status || '').toUpperCase() === 'ERRO').length;
+      const pendingCuts = validCuts - completedCuts - errorCuts;
+      const transcribing = manifest.transcription?.status === 'TRANSCRIBING';
       projects.push({
         name: entry.name,
         title: manifest.project || entry.name,
@@ -28,10 +33,15 @@ export async function listProjects() {
         totalCuts: validCuts,
         validCuts,
         invalidCuts,
+        completedCuts,
+        pendingCuts,
+        errorCuts,
+        transcribing,
+        videoDurationMs: manifest.videoDurationMs || null,
         importedAt: manifest.importedAt,
       });
     } catch {
-      projects.push({ name: entry.name, title: entry.name, sourceVideo: null, sourceSrt: null, cutCount: 0, totalCuts: 0, validCuts: 0, invalidCuts: 0 });
+      projects.push({ name: entry.name, title: entry.name, sourceVideo: null, sourceSrt: null, cutCount: 0, totalCuts: 0, validCuts: 0, invalidCuts: 0, completedCuts: 0, pendingCuts: 0, errorCuts: 0, transcribing: false, videoDurationMs: null, importedAt: null });
     }
   }
   projects.sort((a, b) => String(b.importedAt || '').localeCompare(String(a.importedAt || '')));

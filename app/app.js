@@ -11,7 +11,36 @@
     current: null,  // projeto aberto em detalhe (GET /api/projects/:name)
     stage1: 'IDLE', // IDLE | UPLOADING | TRANSCRIBING | SRT_READY | ERROR
     stage2: 'IDLE', // IDLE | CUTS_READY | VALIDATING | PROCESSING | COMPLETED | ERROR
+    transcribingProject: null,
+    batchRunning: false,
+    query: '',
+    sortKey: 'importedAt',
+    sortDir: -1,
   };
+
+  // ---- Toasts ----
+  function toast(message, type = 'info', timeout = 4200) {
+    const container = $('#toasts') || (() => {
+      const c = document.createElement('div');
+      c.id = 'toasts';
+      c.className = 'toasts';
+      c.setAttribute('role', 'status');
+      c.setAttribute('aria-live', 'polite');
+      document.body.appendChild(c);
+      return c;
+    })();
+    const el = document.createElement('div');
+    el.className = 'toast ' + (['success', 'error', 'info'].includes(type) ? type : 'info');
+    el.textContent = message;
+    container.appendChild(el);
+    while (container.children.length > 5) container.firstElementChild.remove();
+    setTimeout(() => {
+      el.classList.add('leaving');
+      setTimeout(() => el.remove(), 250);
+    }, timeout);
+    return el;
+  }
+  window.toast = toast;
 
   // ---- Utilidades ----
   function escHtml(s) {
@@ -63,10 +92,12 @@
 
   function showMessage(msg, type = 'success') {
     const el = $('#stage-message');
-    if (!el) return;
-    el.textContent = msg;
-    el.className = 'stage-message ' + type;
-    el.hidden = false;
+    if (el) {
+      el.textContent = msg;
+      el.className = 'stage-message ' + type;
+      el.hidden = false;
+    }
+    toast(msg, type === 'error' ? 'error' : (type === 'info' ? 'info' : 'success'));
   }
 
   function hideMessage() {
@@ -86,6 +117,34 @@
     if (t) { t.classList.remove('running', 'done'); if (mod) t.classList.add(mod); }
   }
 
+  // ---- Ações de transcrição (cancelar / refazer) ----
+  function showTranscriptionActions({ cancelling = false, retry = false } = {}) {
+    const row = $('#transcription-actions');
+    if (!row) return;
+    row.classList.toggle('hidden', !cancelling && !retry);
+    const c = $('#cancel-transcription-btn');
+    const r = $('#retry-transcription-btn');
+    if (c) c.classList.toggle('hidden', !cancelling);
+    if (r) r.classList.toggle('hidden', !retry);
+  }
+
+  // ---- Indicador de lote em processamento ----
+  function setBatchRunning(running) {
+    state.batchRunning = !!running;
+    const stage = $('#cancel-batch-btn');
+    const detail = $('#detail-cancel');
+    if (stage) stage.classList.toggle('hidden', !state.batchRunning);
+    if (detail) detail.hidden = !state.batchRunning;
+  }
+  window.setBatchRunning = setBatchRunning;
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
   // ---- Navegação ----
   function setView(name) {
     $$('.view').forEach((v) => v.classList.remove('active'));
@@ -93,6 +152,14 @@
     if (view) view.classList.add('active');
     $$('.nav-item').forEach((btn) => btn.classList.toggle('active', btn.dataset.view === name));
     window.scrollTo({ top: 0 });
+  }
+
+  const initialView = new URLSearchParams(location.search).get('view') || 'dashboard';
+  const initialAnchor = new URLSearchParams(location.search).get('anchor');
+  if ($('#view-' + initialView)) setView(initialView);
+  if (initialAnchor) {
+    const el = $('#' + initialAnchor);
+    if (el) setTimeout(() => el.scrollIntoView({ behavior: 'instant', block: 'start' }), 60);
   }
 
   $$('.nav-item').forEach((btn) => {
@@ -121,6 +188,11 @@
     const label = $('#system-status-text');
     const body = $('#health-body');
     label.textContent = 'VERIFICANDO…';
+    if (body) {
+      body.innerHTML = Array.from({ length: 5 }, () =>
+        '<div class="skeleton" style="height:20px;margin:10px 0"></div>'
+      ).join('');
+    }
     try {
       const h = await api('/api/health');
       label.textContent = 'SISTEMA ONLINE';
@@ -273,13 +345,14 @@
 
       const projName = data.project.name;
       const mb = (file.size / 1024 / 1024).toFixed(1);
+      state.transcribingProject = projName;
 
       const transcription = data.transcription || {};
 
       if (transcription.status === 'SRT_READY') {
         finishSrtReady(projName, mb, transcription.srtBlocks || 0);
       } else if (transcription.status === 'ERROR') {
-        finishSrtError(transcription.error || 'Erro desconhecido na transcrição.');
+        finishSrtError(projName, transcription.error || 'Erro desconhecido na transcrição.');
       } else {
         startPolling(projName, mb);
       }
@@ -411,9 +484,11 @@
     setTask('whisper', 'done');
     setTask('ready', 'done');
     state.stage1 = 'SRT_READY';
+    showTranscriptionActions({});
     setWorkflowStep(3);
     const blocksMsg = srtBlocks ? ` (${srtBlocks} blocos)` : '';
-    showMessage(`Projeto "${projName}" criado (${mb} MB). SRT completo pronto${blocksMsg}.`, 'success');
+    const sizeNote = mb ? ` (${mb} MB)` : '';
+    showMessage(`Projeto "${projName}" criado${sizeNote}. SRT completo pronto${blocksMsg}.`, 'success');
     refreshProjects();
 
     // Mostrar botão de salvar SRT quando o estado for SRT_READY e habilitado
@@ -455,10 +530,12 @@
     }, 0);
   }
 
-  function finishSrtError(message) {
+  function finishSrtError(projName, message) {
     setTask('whisper', '');
     setTask('ready', '');
     state.stage1 = 'ERROR';
+    state.transcribingProject = projName || state.transcribingProject;
+    showTranscriptionActions({ retry: true });
     setWorkflowStep(2);
     showMessage(`Transcrição falhou: ${message}`, 'error');
     refreshProjects();
@@ -470,6 +547,8 @@
   function startPolling(projName, mb) {
     setTask('whisper', 'running');
     state.stage1 = 'TRANSCRIBING';
+    state.transcribingProject = projName;
+    showTranscriptionActions({ cancelling: true });
     setWorkflowStep(2);
 
     if (pollTimer) clearInterval(pollTimer);
@@ -487,7 +566,7 @@
         } else if (st === 'ERROR') {
           clearInterval(pollTimer);
           pollTimer = null;
-          finishSrtError(r.transcription.error || 'Erro desconhecido na transcrição.');
+          finishSrtError(projName, r.transcription.error || 'Erro desconhecido na transcrição.');
         }
       } catch {
         // Erro transitório — continuar polling
@@ -496,10 +575,64 @@
         clearInterval(pollTimer);
         pollTimer = null;
         state.stage1 = 'ERROR';
+        showTranscriptionActions({ retry: true });
         showMessage('Tempo limite de transcrição excedido (1h). Verifique o Whisper.', 'error');
       }
     }, 3000);
   }
+
+  // ---- Cancelar / refazer transcrição ----
+  $('#cancel-transcription-btn').addEventListener('click', async () => {
+    const name = state.transcribingProject;
+    if (!name) return;
+    try {
+      await api(`/api/projects/${encodeURIComponent(name)}/transcription`, { method: 'DELETE' });
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      state.transcribingProject = null;
+      showTranscriptionActions({});
+      showMessage(`Transcrição de "${name}" cancelada.`, 'info');
+      refreshProjects();
+    } catch (e) {
+      showMessage('Erro ao cancelar transcrição: ' + e.message, 'error');
+    }
+  });
+
+  $('#retry-transcription-btn').addEventListener('click', async () => {
+    const name = state.transcribingProject;
+    if (!name) return;
+    try {
+      hideMessage();
+      await api(`/api/projects/${encodeURIComponent(name)}/transcription`, { method: 'POST' });
+      startPolling(name, null);
+      showMessage('Refazendo transcrição…', 'info');
+    } catch (e) {
+      showMessage('Erro ao refazer transcrição: ' + e.message, 'error');
+    }
+  });
+
+  $('#cancel-batch-btn').addEventListener('click', async () => {
+    const name = cutProjectSelect && cutProjectSelect.value;
+    if (!name) return;
+    try {
+      await api(`/api/projects/${encodeURIComponent(name)}/generate-all`, { method: 'DELETE' });
+      setBatchRunning(false);
+      showMessage('Cancelando processamento…', 'info');
+    } catch (e) {
+      showMessage('Erro ao cancelar processamento: ' + e.message, 'error');
+    }
+  });
+
+  $('#detail-cancel').addEventListener('click', async () => {
+    const p = state.current;
+    if (!p) return;
+    try {
+      await api(`/api/projects/${encodeURIComponent(p.name)}/generate-all`, { method: 'DELETE' });
+      setBatchRunning(false);
+      showMessage('Cancelando processamento…', 'info');
+    } catch (e) {
+      showMessage('Erro ao cancelar processamento: ' + e.message, 'error');
+    }
+  });
 
   // ---- Etapa 2 — Importar cortes no projeto existente ----
   const cortesInput = $('#cortes');
@@ -537,16 +670,21 @@
   }
 
   async function refreshProjects() {
+    requireSkeleton(true);
     try {
       const data = await api('/api/projects');
       state.projects = data.projects || [];
       fillProjectSelect();
+      renderKpis(state.projects);
       renderRecentProjects();
       renderProjectsTable();
     } catch (e) {
       state.projects = [];
+      renderKpis([]);
       renderRecentProjects();
       renderProjectsTable();
+    } finally {
+      requireSkeleton(false);
     }
   }
 
@@ -625,7 +763,9 @@
 
     try {
       await api(`/api/projects/${encodeURIComponent(pname)}/generate-all`, { method: 'POST' });
+      setBatchRunning(true);
       const r = await waitForBatchCompletion(pname);
+      setBatchRunning(false);
       if (r.results.failed) throw new Error(`${r.results.failed} corte(s) falharam durante o processamento.`);
       state.stage2 = 'COMPLETED';
       setWorkflowStep(4);
@@ -636,6 +776,7 @@
       showMessage(`Processamento concluído: ${r.results.completed} de ${r.results.total} cortes.`, 'success');
       await refreshProjects();
     } catch (e) {
+      setBatchRunning(false);
       state.stage2 = 'ERROR';
       showMessage('Falha ao processar: ' + e.message, 'error');
       if (cutsResult) {
@@ -643,19 +784,42 @@
           <div class="fine">${escHtml(e.message)}</div>`;
       }
     } finally {
+      setBatchRunning(false);
       processBtn.disabled = false;
     }
   });
 
   // ---- Tabela de projetos (dashboard e Projetos) ----
+  function statusRank(p) {
+    if (Number(p.errorCuts) > 0) return 0;
+    if (p.transcribing) return 1;
+    if (Number(p.totalCuts) > 0 && Number(p.completedCuts) === Number(p.totalCuts)) return 2;
+    if (Number(p.totalCuts) > 0) return 3;
+    if (p.sourceSrt) return 4;
+    return 5;
+  }
+
+  function projectStatusBadge(p) {
+    const err = Number(p.errorCuts) || 0;
+    const done = Number(p.completedCuts) || 0;
+    const total = Number(p.totalCuts) || 0;
+    if (p.transcribing) return '<span class="status-badge accent">Transcrevendo</span>';
+    if (err > 0) return `<span class="status-badge bad">${err} corte(s) com erro</span>`;
+    if (total > 0 && done === total) return '<span class="status-badge ok">Concluído</span>';
+    if (total > 0) return `<span class="status-badge pending">${done}/${total} prontos</span>`;
+    if (p.sourceSrt) return '<span class="status-badge accent">SRT pronto</span>';
+    return '<span class="status-badge muted">Importado</span>';
+  }
+
   function rowHtml(p) {
     const n = Number(p.totalCuts) || Number(p.cutCount) || 0;
     const cutBadge = n === 0
       ? '<span class="status-badge muted">Sem cortes</span>'
-      : `<span class="status-badge ok">${n} corte${n === 1 ? '' : 's'}</span>`;
+      : `<span class="status-badge ok num">${n} corte${n === 1 ? '' : 's'}</span>`;
+    const date = fmtDate(p.importedAt);
     return `<tr>
-      <td><strong>${escHtml(p.title || p.name)}</strong><div class="mono">${escHtml(p.name)}</div></td>
-      <td><span class="status-badge ok">Importado</span></td>
+      <td><strong>${escHtml(p.title || p.name)}</strong><div class="mono">${escHtml(p.name)}${date ? ` · ${date}` : ''}</div></td>
+      <td>${projectStatusBadge(p)}</td>
       <td class="mono">✔</td>
       <td class="mono">${p.sourceSrt ? '✔' : '—'}</td>
       <td>${cutBadge}</td>
@@ -664,6 +828,35 @@
         <button class="btn btn-primary" data-export="${escHtml(p.name)}" type="button">Exportar</button>
       </td>
     </tr>`;
+  }
+
+  function visibleProjects() {
+    const q = state.query.trim().toLowerCase();
+    const filtered = state.projects.filter((p) => {
+      if (!q) return true;
+      const hay = `${p.name || ''} ${p.title || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+    const key = state.sortKey;
+    const dir = state.sortDir;
+    return filtered.sort((a, b) => {
+      let av; let bv;
+      if (key === 'importedAt') { av = a.importedAt ? new Date(a.importedAt).getTime() : -1; bv = b.importedAt ? new Date(b.importedAt).getTime() : -1; }
+      else if (key === 'status') { av = statusRank(a); bv = statusRank(b); }
+      else { av = a[key] ?? ''; bv = b[key] ?? ''; }
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av).localeCompare(String(bv), 'pt-BR') * dir;
+    });
+  }
+
+  function renderKpis(projects) {
+    const set = (id, val) => { const el = $(id); if (el) el.textContent = String(val); };
+    set('#kpi-projects', projects.length);
+    set('#kpi-completed', projects.reduce((s, p) => s + (Number(p.completedCuts) || 0), 0));
+    set('#kpi-pending', projects.reduce((s, p) => s + (Number(p.pendingCuts) || 0), 0));
+    set('#kpi-errors', projects.reduce((s, p) => s + (Number(p.errorCuts) || 0), 0));
+    const sub = $('#kpi-errors-sub');
+    if (sub) sub.textContent = projects.length === 0 ? 'Nenhum projeto ainda' : '';
   }
 
   function renderRecentProjects() {
@@ -688,11 +881,33 @@
     if (!state.projects.length) {
       wrap.classList.add('hidden');
       empty.hidden = false;
+      const count = $('#projects-count');
+      if (count) count.textContent = '';
       return;
     }
     wrap.classList.remove('hidden');
     empty.hidden = true;
-    tbody.innerHTML = state.projects.map(rowHtml).join('');
+    const list = visibleProjects();
+    tbody.innerHTML = list.map(rowHtml).join('');
+    const count = $('#projects-count');
+    if (count) count.textContent = `${list.length} de ${state.projects.length} projeto(s)`;
+  }
+
+  function skeletonRows(rows) {
+    return Array.from({ length: rows }, () =>
+      `<tr class="skeleton-table"><td colspan="6"><span class="skeleton skeleton-row"></span></td></tr>`
+    ).join('');
+  }
+
+  function requireSkeleton(on) {
+    const tbody = $('#projects-tbody');
+    const wrap = $('#projects-table-wrap');
+    if (!tbody || !wrap) return;
+    if (on) {
+      wrap.classList.remove('hidden');
+      $('#projects-empty').hidden = true;
+      tbody.innerHTML = skeletonRows(4);
+    }
   }
 
   // ---- Detalhe do projeto ----
@@ -841,13 +1056,16 @@
     if (!p) return;
     try {
       await api(`/api/projects/${encodeURIComponent(p.name)}/generate-all`, { method: 'POST' });
+      setBatchRunning(true);
       const r = await waitForBatchCompletion(p.name);
+      setBatchRunning(false);
       if (r.results.failed) {
         throw new Error(`${r.results.failed} corte(s) falharam durante o processamento.`);
       }
       showMessage(`Gerados: ${r.results.completed} de ${r.results.total} cortes.`, 'success');
       await openProject(p.name);
     } catch (e) {
+      setBatchRunning(false);
       showMessage('Erro ao gerar cortes: ' + e.message, 'error');
     }
   });
@@ -905,9 +1123,71 @@
     }
   }
 
+  // ---- Busca, ordenação e densidade ----
+  const searchInput = $('#project-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      state.query = e.target.value;
+      renderProjectsTable();
+    });
+  }
+
+  try {
+    if (localStorage.getItem('rells-density') === 'compact') {
+      document.body.classList.add('compact');
+    }
+  } catch { /* sem persistência */ }
+
+  if (document.body.classList.contains('compact')) {
+    $('#density-toggle').textContent = 'ESPAÇAR';
+  }
+
+  $('#density-toggle').addEventListener('click', () => {
+    const on = document.body.classList.toggle('compact');
+    $('#density-toggle').textContent = on ? 'ESPAÇAR' : 'COMPACTAR';
+    try { localStorage.setItem('rells-density', on ? 'compact' : 'normal'); } catch { /* sem persistência */ }
+  });
+
+  const sortThs = $$('#projects-table th[data-sort]');
+  sortThs.forEach((th) => {
+    const key = th.dataset.sort;
+    const click = () => {
+      if (state.sortKey === key) state.sortDir *= -1;
+      else { state.sortKey = key; state.sortDir = (key === 'importedAt') ? -1 : 1; }
+      sortThs.forEach((t) => t.removeAttribute('data-dir'));
+      th.setAttribute('data-dir', state.sortDir === 1 ? 'asc' : 'desc');
+      renderProjectsTable();
+    };
+    th.addEventListener('click', click);
+    th.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); click(); }
+    });
+  });
+
+  // ---- Sidebar colapsável (desktop) ----
+  $('#collapse-btn').addEventListener('click', () => {
+    document.querySelector('.layout').classList.toggle('collapsed');
+  });
+
+  // ---- Atalhos de teclado ----
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, select, textarea')) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '/') {
+      e.preventDefault();
+      const s = $('#project-search');
+      if (s) s.focus();
+    } else if (/^[1-4]$/.test(e.key)) {
+      const views = ['dashboard', 'projects', 'exports', 'settings'];
+      setView(views[Number(e.key) - 1]);
+    }
+  });
+
   // ---- Init ----
   (async function init() {
     hideMessage();
+    showTranscriptionActions({});
+    setBatchRunning(false);
     loadHealth();
     await refreshProjects();
     loadSettings();
