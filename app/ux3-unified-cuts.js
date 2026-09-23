@@ -31,6 +31,7 @@
   function setResult(html) {
     const el = $('#cuts-result');
     if (!el) return;
+    el.hidden = false;
     el.classList.remove('hidden');
     el.innerHTML = html;
   }
@@ -56,12 +57,16 @@
       button.id = 'import-process-btn';
       button.className = 'btn btn-primary';
       button.type = 'button';
-      button.textContent = 'IMPORTAR CORTES E GERAR VÍDEOS';
+      button.textContent = 'IMPORTAR, PROCESSAR E BAIXAR ZIP';
+      button.setAttribute('aria-describedby', 'cuts-help');
       row.appendChild(button);
     }
 
     const updateState = () => {
       button.disabled = !(projectSelect.value && cortesInput.files?.[0]);
+      if (button.textContent === 'CONCLUÍDO ✓') {
+        button.textContent = 'IMPORTAR, PROCESSAR E BAIXAR ZIP';
+      }
     };
 
     cortesInput.addEventListener('change', updateState);
@@ -76,6 +81,9 @@
       if (!file) return setMessage('Selecione um cortes.json para importar.', 'error');
 
       button.disabled = true;
+      button.dataset.running = 'true';
+      projectSelect.disabled = true;
+      cortesInput.disabled = true;
       button.textContent = 'IMPORTANDO CORTES...';
       setResult('<div class="summary">Importando e validando cortes...</div>');
 
@@ -113,6 +121,7 @@
 
         const progress = await window.waitForBatchCompletion(projectName);
         if (window.setBatchRunning) window.setBatchRunning(false);
+        if (window.refreshProjects) await window.refreshProjects();
         const project = await jsonApi(`/api/projects/${encodeURIComponent(projectName)}`);
         const cuts = project.project?.manifest?.cuts || [];
         const results = {
@@ -163,13 +172,16 @@
       } catch (error) {
         if (window.setBatchRunning) window.setBatchRunning(false);
         console.error('[UX3]', error);
-        button.textContent = 'IMPORTAR CORTES E GERAR VÍDEOS';
+        button.textContent = 'IMPORTAR, PROCESSAR E BAIXAR ZIP';
         setMessage(error.message || 'Erro no fluxo de cortes.', 'error');
         setResult(
           `<div class="summary" style="color:var(--red)">✕ Falha no fluxo</div>` +
           `<div class="fine">${escHtml(error.message || 'Erro desconhecido.')}</div>`
         );
       } finally {
+        button.dataset.running = 'false';
+        projectSelect.disabled = false;
+        cortesInput.disabled = false;
         if (button.textContent !== 'CONCLUÍDO ✓') updateState();
       }
     });

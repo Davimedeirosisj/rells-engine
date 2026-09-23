@@ -28,6 +28,9 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+.hidden,
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 body {
@@ -201,6 +204,37 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   margin-top: 2px;
 }
 .flow-badge { background: var(--amber-soft); color: var(--amber); }
+.flow-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  list-style: none;
+}
+.flow-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.flow-num {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-size: 11px;
+  font-weight: 800;
+}
+.flow-list li > div { min-width: 0; }
+.flow-list strong { display: block; font-size: 12px; line-height: 1.4; }
+.flow-list p { margin-top: 5px; color: var(--text-muted); font-size: 11px; line-height: 1.5; }
 
 .card-title h2 { font-size: 15.5px; font-weight: 700; }
 .card-title p { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
@@ -258,7 +292,7 @@ select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csv
   transition: border-color 0.15s;
 }
 .file-drop:hover { border-color: var(--accent); }
-.file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.file-drop .file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .file-hint { color: var(--muted); font-size: 13px; word-break: break-all; }
 
 /* ============ BOTÕES ============ */
@@ -568,6 +602,7 @@ body.compact .card-head { margin-bottom: 12px; }
   .sidebar { position: fixed; z-index: 50; transform: translateX(-100%); transition: transform 0.2s; height: 100vh; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow); }
   .menu-toggle { display: block; }
+  .collapse-btn { display: none; }
   .grid-2 { grid-template-columns: 1fr; }
   .grid-3 { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -578,9 +613,11 @@ body.compact .card-head { margin-bottom: 12px; }
   .detail-actions { flex-direction: column; align-items: flex-end; }
   .workflow { flex-wrap: wrap; }
   .workflow-line { display: none; }
+  .flow-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 520px) {
   .kpi-grid { grid-template-columns: 1fr; }
+  .flow-list { grid-template-columns: 1fr; }
   .toasts { left: 18px; right: 18px; max-width: none; }
 }

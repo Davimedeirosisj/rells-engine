@@ -2,12 +2,12 @@
 
 Aplicação **local** para Windows que processa cortes de vídeo automaticamente via FFmpeg.
 
-O sistema recebe **vídeo original + SRT + cortes.json** (gerados por um modelo de linguagem externo) e produz MP4 verticais (1080x1920), preservando timestamps com precisão de milissegundos.
+O sistema recebe **vídeo original + SRT + cortes.json** (gerados por um modelo de linguagem externo) e produz MP4 verticais (1080x1920). Os tempos de corte são fornecidos em milissegundos; como a saída é reencodificada a 30 fps, o limite visual efetivo depende dos quadros do vídeo.
 
 ## Regras fundamentais
 
 - O vídeo original **nunca** é alterado.
-- Os timestamps do `cortes.json` são usados **exatamente** como definidos (sem arredondamento, sem deslocamento).
+- Os valores de tempo do `cortes.json` são encaminhados ao FFmpeg sem deslocamento criativo. A saída a 30 fps não garante precisão visual subquadro de 1 ms.
 - A seleção criativa pertence ao modelo externo. A aplicação apenas **processa**.
 - Todo o processamento é **local** (sem nuvem, sem IA interna, sem banco de dados).
 
@@ -26,7 +26,7 @@ npm start              # http://localhost:3000
 
 O caminho do FFmpeg pode ser configurado em `.env` via `FFMPEG_PATH` / `FFPROBE_PATH`.
 
-Por segurança, o servidor aceita apenas hosts locais por padrão. Para expor a aplicação na rede, configure `HOST` e defina `ALLOW_REMOTE=1` conscientemente; esta aplicação não possui autenticação.
+Por segurança, o servidor aceita apenas hosts locais por padrão. Para expor a aplicação na rede, configure `HOST`, `ALLOW_REMOTE=1`, `REMOTE_USERNAME` e `REMOTE_PASSWORD`. O acesso remoto exige autenticação HTTP Basic; use HTTPS por meio de um proxy reverso para proteger as credenciais em trânsito.
 
 ## Estrutura
 

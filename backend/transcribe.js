@@ -6,6 +6,12 @@ import { promisify } from 'node:util';
 import { config } from './config.js';
 
 const execFileAsync = promisify(execFile);
+const MAX_CAPTURE_BYTES = 64 * 1024;
+
+function appendTail(current, chunk, maxBytes = MAX_CAPTURE_BYTES) {
+  const next = current + chunk;
+  return next.length > maxBytes ? next.slice(-maxBytes) : next;
+}
 
 export const whisperConfig = {
   model: process.env.WHISPER_MODEL || 'turbo',
@@ -129,10 +135,10 @@ export function execWhisper({ program, moduleArgs = [], args = [], timeoutMs = w
     }
     signal?.addEventListener('abort', abort, { once: true });
 
-    if (child.stdout) child.stdout.on('data', (d) => { stdout += d.toString(); });
+    if (child.stdout) child.stdout.on('data', (d) => { stdout = appendTail(stdout, d.toString()); });
     if (child.stderr) child.stderr.on('data', (d) => {
       const text = d.toString();
-      stderr += text;
+      stderr = appendTail(stderr, text);
       if (typeof onStderr === 'function') onStderr(text);
     });
 

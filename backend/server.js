@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { checkFfmpeg, checkFfprobe, checkFont } from './system.js';
@@ -18,6 +19,38 @@ import { recoverInterruptedJobs } from './progress.js';
 
 export function createApp() {
   const app = express();
+  const localHosts = new Set(['127.0.0.1', 'localhost', '::1']);
+  const remoteBinding = !localHosts.has(config.host.toLowerCase());
+
+  if (remoteBinding) {
+    app.use((req, res, next) => {
+      const authorization = req.get('authorization') || '';
+      const match = authorization.match(/^Basic\s+(.+)$/i);
+      let username = '';
+      let password = '';
+      if (match) {
+        try {
+          const decoded = Buffer.from(match[1], 'base64').toString('utf8');
+          const separator = decoded.indexOf(':');
+          if (separator >= 0) {
+            username = decoded.slice(0, separator);
+            password = decoded.slice(separator + 1);
+          }
+        } catch { /* Credenciais malformadas são rejeitadas abaixo. */ }
+      }
+      const suppliedUser = Buffer.from(username);
+      const expectedUser = Buffer.from(config.remoteUsername);
+      const suppliedPass = Buffer.from(password);
+      const expectedPass = Buffer.from(config.remotePassword);
+      const userOk = suppliedUser.length === expectedUser.length && timingSafeEqual(suppliedUser, expectedUser);
+      const passOk = suppliedPass.length === expectedPass.length && timingSafeEqual(suppliedPass, expectedPass);
+      if (!config.remoteUsername || !config.remotePassword || !userOk || !passOk) {
+        res.set('WWW-Authenticate', 'Basic realm="RELLS ENGINE", charset="UTF-8"');
+        return res.status(401).send('Autenticação necessária.');
+      }
+      next();
+    });
+  }
   app.use(express.json());
   app.get('/', async (_req, res, next) => {
     try {
@@ -60,6 +93,9 @@ export function startServer() {
   const localHosts = new Set(['127.0.0.1', 'localhost', '::1']);
   if (!localHosts.has(config.host.toLowerCase()) && !config.allowRemote) {
     throw new Error('Servidor remoto bloqueado por padrão. Use HOST=127.0.0.1 ou ALLOW_REMOTE=1 conscientemente.');
+  }
+  if (!localHosts.has(config.host.toLowerCase()) && (!config.remoteUsername || !config.remotePassword)) {
+    throw new Error('Acesso remoto exige REMOTE_USERNAME e REMOTE_PASSWORD. Use HTTPS por meio de um proxy reverso ao expor a rede.');
   }
   const app = createApp();
   void recoverInterruptedJobs().catch((err) => console.error('[ERROR] Recuperação de jobs:', err.message));

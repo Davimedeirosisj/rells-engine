@@ -146,12 +146,26 @@
   }
 
   // ---- Navegação ----
-  function setView(name) {
+  const sidebar = $('#sidebar');
+  const menuToggle = $('#menu-toggle');
+  function setView(name, navTarget = null) {
     $$('.view').forEach((v) => v.classList.remove('active'));
     const view = $('#view-' + name);
     if (view) view.classList.add('active');
-    $$('.nav-item').forEach((btn) => btn.classList.toggle('active', btn.dataset.view === name));
+    const activeNav = navTarget || $$('.nav-item').find((btn) => !btn.dataset.anchor && btn.dataset.view === name);
+    $$('.nav-item').forEach((btn) => {
+      const active = btn === activeNav;
+      btn.classList.toggle('active', active);
+      if (active) btn.setAttribute('aria-current', btn.dataset.anchor ? 'location' : 'page');
+      else btn.removeAttribute('aria-current');
+    });
     window.scrollTo({ top: 0 });
+    if (window.innerWidth <= 960) {
+      sidebar.classList.remove('open');
+      menuToggle.setAttribute('aria-expanded', 'false');
+      menuToggle.setAttribute('aria-label', 'Abrir menu');
+      menuToggle.textContent = '☰';
+    }
   }
 
   const initialView = new URLSearchParams(location.search).get('view') || 'dashboard';
@@ -165,21 +179,32 @@
   $$('.nav-item').forEach((btn) => {
     if (btn.dataset.anchor) {
       btn.addEventListener('click', () => {
-        setView('dashboard');
+        setView('dashboard', btn);
         const el = $('#' + btn.dataset.anchor);
         if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
       });
     } else {
-      btn.addEventListener('click', () => setView(btn.dataset.view));
+      btn.addEventListener('click', () => setView(btn.dataset.view, btn));
     }
   });
 
   // ---- Sidebar mobile ----
-  const sidebar = $('#sidebar');
-  $('#menu-toggle').addEventListener('click', () => sidebar.classList.toggle('open'));
+  const setMobileMenuOpen = (open) => {
+    sidebar.classList.toggle('open', open);
+    menuToggle.setAttribute('aria-expanded', String(open));
+    menuToggle.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+    menuToggle.textContent = open ? '×' : '☰';
+  };
+  menuToggle.addEventListener('click', () => setMobileMenuOpen(!sidebar.classList.contains('open')));
   document.addEventListener('click', (e) => {
     if (window.innerWidth <= 960 && !sidebar.contains(e.target) && !e.target.closest('#menu-toggle')) {
-      sidebar.classList.remove('open');
+      setMobileMenuOpen(false);
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+      setMobileMenuOpen(false);
+      menuToggle.focus();
     }
   });
 
@@ -646,7 +671,11 @@
     cortesNameEl.textContent = f ? f.name : 'Nenhum arquivo selecionado';
     processBtn.disabled = true;
     state.stage2 = 'IDLE';
-    if (cutsResult) cutsResult.innerHTML = '';
+    if (cutsResult) {
+      cutsResult.classList.add('hidden');
+      cutsResult.hidden = true;
+      cutsResult.innerHTML = '';
+    }
   });
 
   if (cutProjectSelect) {
@@ -655,6 +684,7 @@
       processBtn.disabled = true;
       if (cutsResult) {
         cutsResult.classList.add('hidden');
+        cutsResult.hidden = true;
         cutsResult.innerHTML = '';
       }
     });
@@ -662,12 +692,33 @@
 
   // Preenche selects de projeto
   function fillProjectSelect() {
-    const opts = state.projects.map((p) =>
-      `<option value="${escHtml(p.name)}">${escHtml(p.title || p.name)}</option>`
-    ).join('');
-    $('#cut-project-select').innerHTML = opts || '<option value="">Nenhum projeto</option>';
-    $('#export-project-select').innerHTML = opts || '<option value="">Nenhum projeto</option>';
+    const cutSelect = $('#cut-project-select');
+    const exportSelect = $('#export-project-select');
+    const previousCut = cutSelect.value;
+    const previousExport = exportSelect.value;
+    const cutOptions = state.projects.map((p) => {
+      const ready = Boolean(p.sourceSrt);
+      const suffix = ready ? '' : ' — transcrição pendente';
+      return `<option value="${escHtml(p.name)}" ${ready ? '' : 'disabled'}>${escHtml(p.title || p.name)}${suffix}</option>`;
+    }).join('');
+    const exportOptions = state.projects.map((p) => {
+      const completed = Number(p.completedCuts) || 0;
+      const suffix = completed ? ` — ${completed} pronto(s)` : ' — nenhum corte concluído';
+      return `<option value="${escHtml(p.name)}" ${completed ? '' : 'disabled'}>${escHtml(p.title || p.name)}${suffix}</option>`;
+    }).join('');
+    cutSelect.innerHTML = `<option value="">${state.projects.length ? 'Selecione um projeto com SRT pronto' : 'Nenhum projeto disponível'}</option>${cutOptions}`;
+    exportSelect.innerHTML = `<option value="">${state.projects.some((p) => Number(p.completedCuts) > 0) ? 'Selecione um projeto' : 'Nenhum projeto com cortes prontos'}</option>${exportOptions}`;
+    if (state.projects.some((p) => p.name === previousCut && p.sourceSrt)) cutSelect.value = previousCut;
+    if (state.projects.some((p) => p.name === previousExport && Number(p.completedCuts) > 0)) exportSelect.value = previousExport;
+    updateExportButton();
   }
+
+  function updateExportButton() {
+    const select = $('#export-project-select');
+    const option = select.selectedOptions[0];
+    $('#export-btn').disabled = !select.value || !option || option.disabled;
+  }
+  $('#export-project-select').addEventListener('change', updateExportButton);
 
   async function refreshProjects() {
     requireSkeleton(true);
@@ -680,6 +731,7 @@
       renderProjectsTable();
     } catch (e) {
       state.projects = [];
+      fillProjectSelect();
       renderKpis([]);
       renderRecentProjects();
       renderProjectsTable();
@@ -687,6 +739,7 @@
       requireSkeleton(false);
     }
   }
+  window.refreshProjects = refreshProjects;
 
   // ---- Validação real no servidor (importação de cortes) ----
   $('#validate-btn').addEventListener('click', async () => {
@@ -722,6 +775,7 @@
       state.stage2 = 'ERROR';
       showMessage('Erro ao importar cortes: ' + e.message, 'error');
       if (cutsResult) {
+        cutsResult.hidden = false;
         cutsResult.classList.remove('hidden');
         cutsResult.innerHTML = `<div class="summary" style="color:var(--red)">✕ Falha na importação</div>
           <div class="fine">${escHtml(e.message)}</div>`;
@@ -734,6 +788,7 @@
     const total = summary.total || 0;
     const valid = summary.valid || 0;
     const errors = summary.errors || [];
+    cutsResult.hidden = false;
     cutsResult.classList.remove('hidden');
     if (ok) {
       cutsResult.innerHTML = `<div class="summary">✓ ${valid} de ${total} cortes importados e validados no servidor</div>
@@ -757,6 +812,7 @@
     processBtn.disabled = true;
     setWorkflowStep(4);
     if (cutsResult) {
+      cutsResult.hidden = false;
       cutsResult.classList.remove('hidden');
       cutsResult.innerHTML = '<div class="summary">Processando cortes com FFmpeg…</div><div class="fine">Isso pode levar alguns minutos.</div>';
     }
@@ -816,6 +872,7 @@
     const cutBadge = n === 0
       ? '<span class="status-badge muted">Sem cortes</span>'
       : `<span class="status-badge ok num">${n} corte${n === 1 ? '' : 's'}</span>`;
+    const completed = Number(p.completedCuts) || 0;
     const date = fmtDate(p.importedAt);
     return `<tr>
       <td><strong>${escHtml(p.title || p.name)}</strong><div class="mono">${escHtml(p.name)}${date ? ` · ${date}` : ''}</div></td>
@@ -825,7 +882,7 @@
       <td>${cutBadge}</td>
       <td class="actions">
         <button class="btn btn-secondary" data-open="${escHtml(p.name)}" type="button">Ver corte</button>
-        <button class="btn btn-primary" data-export="${escHtml(p.name)}" type="button">Exportar</button>
+        <button class="btn btn-primary" data-export="${escHtml(p.name)}" type="button" ${completed ? '' : 'disabled title="Gere pelo menos um corte antes de exportar."'}>Exportar</button>
       </td>
     </tr>`;
   }
@@ -881,13 +938,23 @@
     if (!state.projects.length) {
       wrap.classList.add('hidden');
       empty.hidden = false;
+      empty.textContent = 'Nenhum projeto criado ainda.';
       const count = $('#projects-count');
       if (count) count.textContent = '';
       return;
     }
+    const list = visibleProjects();
+    if (!list.length) {
+      wrap.classList.add('hidden');
+      empty.hidden = false;
+      empty.textContent = 'Nenhum projeto corresponde a esta busca.';
+      const count = $('#projects-count');
+      if (count) count.textContent = `0 de ${state.projects.length} projeto(s)`;
+      return;
+    }
     wrap.classList.remove('hidden');
     empty.hidden = true;
-    const list = visibleProjects();
+    empty.textContent = 'Nenhum projeto criado ainda.';
     tbody.innerHTML = list.map(rowHtml).join('');
     const count = $('#projects-count');
     if (count) count.textContent = `${list.length} de ${state.projects.length} projeto(s)`;
@@ -921,11 +988,12 @@
       $('#detail-sub').textContent = `${cuts.length} corte(s) · duração ${fmtMs(dur)}`;
       $('#detail-card').classList.remove('hidden');
       $('#detail-generate-all').disabled = cuts.length === 0;
-      $('#detail-export').disabled = cuts.length === 0;
+      $('#detail-export').disabled = !cuts.some((cut) => cut.status === 'CONCLUÍDO');
       renderCutTable(cuts);
       renderValidationErrors(state.current.manifest);
       populateProjectOptions();
       setView('projects');
+      requestAnimationFrame(() => $('#detail-card').scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch (e) {
       showMessage('Erro ao abrir projeto: ' + e.message, 'error');
     }
@@ -1039,6 +1107,17 @@
     setView('projects');
   });
 
+  $('#detail-export').addEventListener('click', async () => {
+    if (!state.current) return;
+    const exportSelect = $('#export-project-select');
+    const projectName = state.current.name;
+    await refreshProjects();
+    exportSelect.value = projectName;
+    updateExportButton();
+    setView('exports');
+    exportZip();
+  });
+
   async function generateCut(cutId) {
     const p = state.current;
     if (!p) return;
@@ -1046,6 +1125,7 @@
       const r = await api(`/api/projects/${encodeURIComponent(p.name)}/cuts/${encodeURIComponent(cutId)}/generate`, { method: 'POST' });
       showMessage(`Corte "${cutId}" gerado com sucesso.`, 'success');
       await openProject(p.name);
+      await refreshProjects();
     } catch (e) {
       showMessage('Erro ao gerar corte: ' + e.message, 'error');
     }
@@ -1064,6 +1144,7 @@
       }
       showMessage(`Gerados: ${r.results.completed} de ${r.results.total} cortes.`, 'success');
       await openProject(p.name);
+      await refreshProjects();
     } catch (e) {
       setBatchRunning(false);
       showMessage('Erro ao gerar cortes: ' + e.message, 'error');
@@ -1109,7 +1190,12 @@
   async function exportZip() {
     const name = $('#export-project-select').value;
     if (!name) return showMessage('Selecione um projeto para exportar.', 'error');
+    const project = state.projects.find((item) => item.name === name);
+    if (!project || Number(project.completedCuts) < 1) {
+      return showMessage('Este projeto ainda não tem cortes concluídos para exportar.', 'error');
+    }
     const box = $('#export-result');
+    box.hidden = false;
     box.classList.remove('hidden');
     box.innerHTML = '<div class="summary">Gerando ZIP…</div>';
     try {
@@ -1166,7 +1252,11 @@
 
   // ---- Sidebar colapsável (desktop) ----
   $('#collapse-btn').addEventListener('click', () => {
-    document.querySelector('.layout').classList.toggle('collapsed');
+    const button = $('#collapse-btn');
+    const collapsed = document.querySelector('.layout').classList.toggle('collapsed');
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.setAttribute('aria-label', collapsed ? 'Expandir sidebar' : 'Recolher sidebar');
+    button.title = collapsed ? 'Expandir sidebar' : 'Recolher sidebar';
   });
 
   // ---- Atalhos de teclado ----

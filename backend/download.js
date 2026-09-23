@@ -114,7 +114,6 @@ export function downloadVideo({ url, outputDir, filename = 'video', onProgress, 
 
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stderr = '';
     let lastError = '';
     const state = { percent: 0, speed: null, etaSeconds: null };
 
@@ -124,11 +123,10 @@ export function downloadVideo({ url, outputDir, filename = 'video', onProgress, 
 
     const handleChunk = (chunk) => {
       const text = chunk.toString();
-      stderr += text;
       const lines = text.split(/\r?\n/);
       for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed.startsWith('ERROR:')) lastError = trimmed.slice('ERROR:'.length).trim();
+        if (trimmed.startsWith('ERROR:')) lastError = trimmed.slice('ERROR:'.length).trim().slice(-2000);
         if (/^\[download\]/.test(trimmed)) {
           parseDownloadProgressLine(trimmed, state);
           report();

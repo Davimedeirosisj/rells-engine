@@ -4,8 +4,7 @@ import { executeCut } from '../ffmpeg.js';
 import { config } from '../config.js';
 import { validateRenderedMp4 } from '../validate.js';
 import { resolveRenderOptions } from '../render-options.js';
-
-const activeCuts = new Set();
+import { acquireProjectRender } from './render-lock.js';
 
 export async function processCut(dir, manifest, cut, index, progress = {}) {
   const originalVideoPath = path.join(dir, manifest.sourceVideo);
@@ -53,9 +52,7 @@ export async function processCut(dir, manifest, cut, index, progress = {}) {
 }
 
 export async function generateCut(projectName, cutId) {
-  const key = `${projectName}:${cutId}`;
-  if (activeCuts.has(key)) throw new Error(`Corte ${cutId} já está em processamento.`);
-  activeCuts.add(key);
+  const releaseRender = acquireProjectRender(projectName, `processamento do corte ${cutId}`);
 
   try {
     const { dir, manifest } = await getProject(projectName);
@@ -82,6 +79,6 @@ export async function generateCut(projectName, cutId) {
     await saveManifest(projectName, manifest);
     return { cut, manifest };
   } finally {
-    activeCuts.delete(key);
+    releaseRender();
   }
 }

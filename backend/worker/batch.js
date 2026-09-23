@@ -1,6 +1,7 @@
 import { getProject, saveManifest } from '../projects.js';
 import { processCut } from './cut.js';
 import { setProgress } from '../progress.js';
+import { acquireProjectRender } from './render-lock.js';
 
 const activeBatches = new Map();
 
@@ -16,9 +17,7 @@ export function cancelBatch(projectName) {
 }
 
 export async function generateAllCuts(projectName, processor = processCut) {
-  if (activeBatches.has(projectName)) {
-    throw new Error(`Já existe um processamento em andamento para o projeto "${projectName}".`);
-  }
+  const releaseRender = acquireProjectRender(projectName);
 
   const controller = new AbortController();
   activeBatches.set(projectName, controller);
@@ -107,5 +106,6 @@ export async function generateAllCuts(projectName, processor = processCut) {
     return { manifest, results };
   } finally {
     activeBatches.delete(projectName);
+    releaseRender();
   }
 }

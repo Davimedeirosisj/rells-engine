@@ -21,34 +21,34 @@
       </div>
 
       <nav class="nav" id="main-nav" aria-label="Navegação principal">
-        <button class="nav-item active" data-view="dashboard" type="button">
+        <button class="nav-item active" data-view="dashboard" aria-label="Início" aria-current="page" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6h-6v6H3z"/></svg>
           <span>Início</span>
         </button>
-        <button class="nav-item" data-view="projects" type="button">
+        <button class="nav-item" data-view="projects" aria-label="Projetos" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>
           <span>Projetos</span>
         </button>
-        <button class="nav-item" data-view="dashboard" data-anchor="stage1" type="button">
+        <button class="nav-item" data-view="dashboard" data-anchor="stage1" aria-label="Importar vídeo" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 12-5-5m5 5 5-5"/><path d="M4 20h16"/></svg>
           <span>Importar vídeo</span>
         </button>
-        <button class="nav-item" data-view="dashboard" data-anchor="stage2" type="button">
+        <button class="nav-item" data-view="dashboard" data-anchor="stage2" aria-label="Cortes" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
           <span>Cortes</span>
         </button>
-        <button class="nav-item" data-view="exports" type="button">
+        <button class="nav-item" data-view="exports" aria-label="Exportações" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 19h16"/></svg>
           <span>Exportações</span>
         </button>
-        <button class="nav-item" data-view="settings" type="button">
+        <button class="nav-item" data-view="settings" aria-label="Configurações" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12z"/></svg>
           <span>Configurações</span>
         </button>
       </nav>
 
       <div class="sidebar-foot">
-        <span class="local-chip">100% local</span>
+        <span class="local-chip">Processamento local</span>
         <span class="sidebar-note">Whisper + FFmpeg nesta máquina</span>
       </div>
     </aside>
@@ -56,8 +56,8 @@
     <!-- ===== MAIN ===== -->
     <main class="main">
       <header class="topbar">
-        <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Abrir menu">☰</button>
-        <button class="icon-btn collapse-btn" id="collapse-btn" type="button" title="Recolher sidebar" aria-label="Recolher sidebar">
+        <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+        <button class="icon-btn collapse-btn" id="collapse-btn" type="button" title="Recolher sidebar" aria-label="Recolher sidebar" aria-controls="sidebar" aria-expanded="true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
         </button>
         <div class="topbar-heading">
@@ -149,7 +149,7 @@
 
             <button id="upload-btn" class="btn btn-primary btn-full" type="button">ENVIAR VÍDEO + GERAR SRT</button>
             <p class="whisper-note">
-              <span class="dot-local"></span>Whisper 100% LOCAL — o vídeo não sai desta máquina.
+              <span class="dot-local"></span>Transcrição e processamento locais. Vídeos do YouTube exigem conexão com a internet.
             </p>
 
             <div class="task-panel hidden" id="upload-tasks">
@@ -228,7 +228,7 @@
               <button id="validate-btn" class="btn btn-secondary" type="button">VALIDAR CORTES</button>
               <button id="process-btn" class="btn btn-primary" type="button" disabled>PROCESSAR CORTES COM FFMPEG</button>
             </div>
-<p class="external-note">
+<p class="external-note" id="cuts-help">
                 Os cortes devem ser gerados externamente usando o SRT e o manual TOP 10 CORTES.
               </p>
               <div id="cuts-result" class="cuts-result" hidden></div>
@@ -374,9 +374,12 @@
           <div class="card-body">
             <label class="field">
               <span class="field-label">PROJETO</span>
-              <select id="export-project-select" class="input"></select>
+              <select id="export-project-select" class="input" aria-describedby="export-help">
+                <option value="">Selecione um projeto</option>
+              </select>
             </label>
-            <button id="export-btn" class="btn btn-primary" type="button">EXPORTAR ZIP</button>
+            <p id="export-help" class="fine">Somente projetos com cortes concluídos podem ser exportados.</p>
+            <button id="export-btn" class="btn btn-primary" type="button" disabled>EXPORTAR ZIP</button>
           </div>
           <div id="export-result" class="cuts-result" hidden></div>
         </div>

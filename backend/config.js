@@ -18,6 +18,8 @@ function findArrobaPng() {
 export const config = {
   host: process.env.HOST || '127.0.0.1',
   allowRemote: process.env.ALLOW_REMOTE === '1' || process.env.ALLOW_REMOTE === 'true',
+  remoteUsername: process.env.REMOTE_USERNAME || '',
+  remotePassword: process.env.REMOTE_PASSWORD || '',
   port: Number(process.env.PORT) || 3000,
   rootDir,
   dirs: {

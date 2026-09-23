@@ -12,7 +12,7 @@
     #realtime-progress .rp-title{font-weight:800;letter-spacing:.02em}
     #realtime-progress .rp-percent{font-size:22px;font-weight:900}
     #realtime-progress .rp-track{height:9px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden}
-    #realtime-progress .rp-bar{height:100%;width:0;border-radius:99px;transition:width .25s ease}
+    #realtime-progress .rp-bar{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#7170ff,#2cb67d);transition:width .25s ease}
     #realtime-progress .rp-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
     #realtime-progress .rp-stat{padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.045)}
     #realtime-progress .rp-label{display:block;font-size:11px;opacity:.58;text-transform:uppercase;letter-spacing:.08em}
@@ -27,10 +27,10 @@
     if (panel) return panel;
     panel = document.createElement('section');
     panel.id = 'realtime-progress';
-    panel.setAttribute('aria-live', 'polite');
+    panel.setAttribute('aria-label', 'Progresso do processamento');
     panel.innerHTML = `
       <div class="rp-head"><div class="rp-title" id="rp-title">PROGRESSO</div><div class="rp-percent" id="rp-percent">0%</div></div>
-      <div class="rp-track"><div class="rp-bar" id="rp-bar"></div></div>
+      <div class="rp-track" role="progressbar" aria-labelledby="rp-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="rp-bar" id="rp-bar" aria-hidden="true"></div></div>
       <div class="rp-meta">
         <div class="rp-stat"><span class="rp-label">Decorrido</span><span class="rp-value" id="rp-elapsed">—</span></div>
         <div class="rp-stat"><span class="rp-label">Restante</span><span class="rp-value" id="rp-eta">—</span></div>
@@ -69,6 +69,7 @@
     panel.querySelector('#rp-title').textContent = title || 'PROGRESSO';
     panel.querySelector('#rp-percent').textContent = `${pct.toFixed(pct < 10 || pct % 1 ? 1 : 0)}%`;
     panel.querySelector('#rp-bar').style.width = `${pct}%`;
+    panel.querySelector('[role="progressbar"]').setAttribute('aria-valuenow', String(Math.round(pct)));
     panel.querySelector('#rp-elapsed').textContent = fmtSeconds(elapsedSeconds);
     panel.querySelector('#rp-eta').textContent = Number.isFinite(estimatedRemainingSeconds) ? fmtSeconds(estimatedRemainingSeconds) : 'Calculando…';
     panel.querySelector('#rp-speed').textContent = speed == null ? '—' : (typeof speed === 'number' && speed < 20 ? `${speed.toFixed(1)}x` : fmtBytes(speed));

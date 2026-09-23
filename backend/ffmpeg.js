@@ -3,6 +3,13 @@ import { getFfmpegBin } from './system.js';
 import { buildVideoFilter } from './filter.js';
 import { assertFontAvailable } from './fonts.js';
 
+const MAX_CAPTURE_BYTES = 64 * 1024;
+
+function appendTail(current, chunk, maxBytes = MAX_CAPTURE_BYTES) {
+  const next = current + chunk;
+  return next.length > maxBytes ? next.slice(-maxBytes) : next;
+}
+
 export function msToFfmpegTime(ms) {
   const total = Math.round(ms);
   if (total < 0) throw new Error('Timestamp negativo não permitido.');
@@ -71,7 +78,7 @@ export function runFfmpeg(args, { onProgress, totalDurationMs, signal } = {}) {
     let progressBuffer = '';
     child.stdout.on('data', (chunk) => {
       const text = chunk.toString();
-      stdout += text;
+      stdout = appendTail(stdout, text);
       progressBuffer += text;
       const lines = progressBuffer.split(/\r?\n/);
       progressBuffer = lines.pop() || '';
