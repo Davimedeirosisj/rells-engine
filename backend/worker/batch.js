@@ -57,7 +57,8 @@ export async function generateAllCuts(projectName, processor = processCut) {
     try {
       await processor(dir, manifest, cut, i, {
         onProgress: ({ progress = 0, elapsedSeconds = 0, estimatedRemainingSeconds = null, speed = null }) => {
-          const overall = ((completedBefore + progress / 100) / Math.max(cuts.length, 1)) * 100;
+          const cutProgress = Math.min(100, progress); // FFmpeg já retorna 0-100
+          const overall = ((completedBefore * 100 + cutProgress) / cuts.length).toFixed(2);
           const elapsedTotal = (Date.now() - batchStartedAt) / 1000;
           const remainingCuts = Math.max(0, cuts.length - (completedBefore + progress / 100));
           const eta = remainingCuts > 0 && elapsedTotal > 0 ? (elapsedTotal / Math.max(completedBefore + progress / 100, 0.01)) * remainingCuts : estimatedRemainingSeconds;

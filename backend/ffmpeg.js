@@ -90,8 +90,8 @@ export function runFfmpeg(args, { onProgress, totalDurationMs, signal } = {}) {
 
     const timeout = setTimeout(() => {
       child.kill('SIGTERM');
-      reject(new Error('Tempo de execução excedido (180s).'));
-    }, 180 * 1000);
+      reject(new Error('Tempo de execução excedido (600s).'));
+    }, 600 * 1000);
     const clearRenderTimeout = () => clearTimeout(timeout);
     const abort = () => {
       if (settled) return;
